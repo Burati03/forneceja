@@ -14,13 +14,233 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      favoritos: {
+        Row: {
+          produto_id: number
+          user_id: string
+        }
+        Insert: {
+          produto_id: number
+          user_id: string
+        }
+        Update: {
+          produto_id?: number
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "favoritos_produto_id_fkey"
+            columns: ["produto_id"]
+            isOneToOne: false
+            referencedRelation: "produtos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mensagens: {
+        Row: {
+          criado_em: string
+          de_id: string
+          id: number
+          para_id: string
+          texto: string
+        }
+        Insert: {
+          criado_em?: string
+          de_id: string
+          id?: number
+          para_id: string
+          texto: string
+        }
+        Update: {
+          criado_em?: string
+          de_id?: string
+          id?: number
+          para_id?: string
+          texto?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mensagens_de_id_fkey"
+            columns: ["de_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mensagens_para_id_fkey"
+            columns: ["para_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pedidos: {
+        Row: {
+          criado_em: string
+          empresario_id: string
+          id: number
+          produto_id: number
+          qtd: number
+          status: string
+        }
+        Insert: {
+          criado_em?: string
+          empresario_id: string
+          id?: number
+          produto_id: number
+          qtd: number
+          status?: string
+        }
+        Update: {
+          criado_em?: string
+          empresario_id?: string
+          id?: number
+          produto_id?: number
+          qtd?: number
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pedidos_empresario_id_fkey"
+            columns: ["empresario_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pedidos_produto_id_fkey"
+            columns: ["produto_id"]
+            isOneToOne: false
+            referencedRelation: "produtos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      produtos: {
+        Row: {
+          categoria: string | null
+          criado_em: string
+          descricao: string | null
+          fornecedor_id: string
+          icone: string
+          id: number
+          nome: string
+          preco: number
+          qtd_min: number
+          unidade: string
+          views: number
+        }
+        Insert: {
+          categoria?: string | null
+          criado_em?: string
+          descricao?: string | null
+          fornecedor_id: string
+          icone?: string
+          id?: number
+          nome: string
+          preco: number
+          qtd_min?: number
+          unidade?: string
+          views?: number
+        }
+        Update: {
+          categoria?: string | null
+          criado_em?: string
+          descricao?: string | null
+          fornecedor_id?: string
+          icone?: string
+          id?: number
+          nome?: string
+          preco?: number
+          qtd_min?: number
+          unidade?: string
+          views?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "produtos_fornecedor_id_fkey"
+            columns: ["fornecedor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profiles: {
+        Row: {
+          categoria: string | null
+          cidade: string | null
+          criado_em: string
+          email: string | null
+          empresa: string
+          id: string
+          is_seed: boolean
+          tipo: string
+        }
+        Insert: {
+          categoria?: string | null
+          cidade?: string | null
+          criado_em?: string
+          email?: string | null
+          empresa: string
+          id: string
+          is_seed?: boolean
+          tipo: string
+        }
+        Update: {
+          categoria?: string | null
+          cidade?: string | null
+          criado_em?: string
+          email?: string | null
+          empresa?: string
+          id?: string
+          is_seed?: boolean
+          tipo?: string
+        }
+        Relationships: []
+      }
+      profiles_private: {
+        Row: {
+          documento: string | null
+          documento_tipo: string
+          id: string
+          telefone: string | null
+        }
+        Insert: {
+          documento?: string | null
+          documento_tipo?: string
+          id: string
+          telefone?: string | null
+        }
+        Update: {
+          documento?: string | null
+          documento_tipo?: string
+          id?: string
+          telefone?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "profiles_private_id_fkey"
+            columns: ["id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      meu_tipo: { Args: never; Returns: string }
+      mudar_status: {
+        Args: { _id: number; _status: string }
+        Returns: undefined
+      }
+      ver_produto: { Args: { _id: number }; Returns: undefined }
     }
     Enums: {
       [_ in never]: never
