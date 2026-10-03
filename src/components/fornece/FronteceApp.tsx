@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { useServerFn } from "@tanstack/react-start";
+import { buscarComIA } from "@/lib/busca.functions";
 import logoBranco from "@/assets/logo-branco.png.asset.json";
 import logoCor from "@/assets/logo-cor.png.asset.json";
 import logoEmp from "@/assets/logo-empilhado.png.asset.json";
@@ -28,10 +30,15 @@ const brl = (n: number) => "R$ " + Number(n).toFixed(2).replace(".", ",");
 
 type Me = { id: string; tipo: "f" | "e"; empresa: string; email: string | null };
 type Prod = { id: number; nome: string; preco: number; unidade: string; qtd_min: number; categoria: string | null; descricao: string | null; icone: string; views: number; fornecedor_id: string; fornecedor: string; cidade: string | null; fav?: boolean };
-type Scr = "splash" | "login" | "tipo" | "cad" | "feed" | "favs" | "meus" | "det" | "conversas" | "chat" | "painel" | "pedidos" | "perfil" | "novo";
+type Scr = "splash" | "login" | "tipo" | "cad" | "feed" | "favs" | "meus" | "det" | "conversas" | "chat" | "painel" | "pedidos" | "perfil" | "novo" | "esqueci" | "ia" | "forn" | "avaliar";
 
 const PSEL = "*, p:profiles!produtos_fornecedor_id_fkey(empresa,cidade)";
 const mapP = (r: any): Prod => ({ ...r, preco: Number(r.preco), fornecedor: r.p?.empresa ?? "", cidade: r.p?.cidade ?? null });
+const Stars = ({ n, size = 16 }: { n: number; size?: number }) => (
+  <span className="stars" aria-label={`${n.toFixed(1)} de 5`}>{[1, 2, 3, 4, 5].map((i) => (
+    <svg key={i} width={size} height={size} viewBox="0 0 24 24" className={i <= Math.round(n) ? "on" : ""}><path d={ICONS["star"]} /></svg>))}</span>
+);
+const media = (ns: number[]) => (ns.length ? ns.reduce((a, b) => a + b, 0) / ns.length : 0);
 const err = (e: any) => { if (e) throw new Error(e.message); };
 
 export function ForneceApp() {
@@ -77,7 +84,15 @@ export function ForneceApp() {
         await supabase.rpc("ver_produto", { _id: arg });
         const { data: r, error } = await supabase.from("produtos").select(PSEL).eq("id", arg).single(); err(error);
         const fs = await favIds();
-        data = { ...mapP(r), fav: fs.has(arg) };
+        const { data: av } = await supabase.from("avaliacoes").select("nota").eq("fornecedor_id", r!.fornecedor_id);
+        const notas = (av || []).map((a) => a.nota);
+        data = { ...mapP(r), fav: fs.has(arg), nota: media(notas), nAval: notas.length };
+      } else if (s === "forn") {
+        const { data: pf, error } = await supabase.from("profiles").select("id,empresa,categoria,cidade").eq("id", arg).single(); err(error);
+        const { data: av } = await supabase.from("avaliacoes")
+          .select("id,nota,comentario,criado_em,autor:profiles!avaliacoes_empresario_id_fkey(empresa)").eq("fornecedor_id", arg).order("id", { ascending: false });
+        const { data: rows } = await supabase.from("produtos").select(PSEL).eq("fornecedor_id", arg).order("id", { ascending: false });
+        data = { pf, av: av || [], nota: media((av || []).map((a) => a.nota)), prods: (rows || []).map(mapP) };
       } else if (s === "conversas" && m) {
         const { data: msgs, error } = await supabase.from("mensagens").select("de_id,para_id,texto,id").order("id", { ascending: false }); err(error);
         const seen = new Map<string, string>();
@@ -98,8 +113,10 @@ export function ForneceApp() {
         data = { produtos: ps?.length || 0, views: (ps || []).reduce((a, p) => a + p.views, 0), mensagens: msgs || 0, pedidos: peds || 0 };
       } else if (s === "pedidos") {
         const { data: rows, error } = await supabase.from("pedidos")
-          .select("id,qtd,status,empresario_id,produto:produtos(nome,unidade),cliente:profiles!pedidos_empresario_id_fkey(empresa)").order("id", { ascending: false }); err(error);
-        data = (rows || []).map((o: any) => ({ id: o.id, qtd: o.qtd, status: o.status, nome: o.produto?.nome, unidade: o.produto?.unidade, cliente: o.cliente?.empresa, cliente_id: o.empresario_id }));
+          .select("id,qtd,status,empresario_id,produto:produtos(nome,unidade,fornecedor_id),cliente:profiles!pedidos_empresario_id_fkey(empresa)").order("id", { ascending: false }); err(error);
+        const { data: avs } = await supabase.from("avaliacoes").select("pedido_id");
+        const aval = new Set((avs || []).map((a) => a.pedido_id));
+        data = (rows || []).map((o: any) => ({ avaliado: aval.has(o.id), fornecedor_id: o.produto?.fornecedor_id, id: o.id, qtd: o.qtd, status: o.status, nome: o.produto?.nome, unidade: o.produto?.unidade, cliente: o.cliente?.empresa, cliente_id: o.empresario_id }));
       }
       if (id !== fresh.current) return;
       setD(data); setX(arg); setScr(s);
@@ -206,6 +223,45 @@ export function ForneceApp() {
     toast("Produto publicado!"); go("meus");
   }
 
+  const buscar = useServerFn(buscarComIA);
+  const [ia, setIa] = useState<{ texto: string; busy: boolean; resumo: string; prods: Prod[] | null }>({ texto: "", busy: false, resumo: "", prods: null });
+  async function buscarIA() {
+    const pedido = ia.texto.trim();
+    if (pedido.length < 3) return toast("Descreva o que você precisa.");
+    setIa((v) => ({ ...v, busy: true, prods: null, resumo: "" }));
+    try {
+      const res = await buscar({ data: { pedido } });
+      if (!res.ok) { setIa((v) => ({ ...v, busy: false })); return toast(res.erro); }
+      let prods: Prod[] = [];
+      if (res.ids.length) {
+        const { data: rows } = await supabase.from("produtos").select(PSEL).in("id", res.ids);
+        const byId = new Map((rows || []).map((r: any) => [r.id, mapP(r)]));
+        prods = res.ids.map((i) => byId.get(i)).filter(Boolean) as Prod[];
+      }
+      setIa((v) => ({ ...v, busy: false, resumo: res.resumo, prods }));
+    } catch { setIa((v) => ({ ...v, busy: false })); toast("Não foi possível fazer a busca agora."); }
+  }
+
+  async function esqueci() {
+    const email = val("re").trim().toLowerCase();
+    if (!email.includes("@")) return toast("Informe um e-mail válido.");
+    setBusy(true);
+    const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: window.location.origin + "/reset-password" });
+    setBusy(false);
+    if (error) return toast("Não foi possível enviar agora. Tente de novo em instantes.");
+    toast("Se o e-mail estiver cadastrado, você receberá um link."); setScr("login");
+  }
+
+  const [nota, setNota] = useState(0);
+  async function enviarAvaliacao() {
+    if (!me || !x) return;
+    if (!nota) return toast("Escolha de 1 a 5 estrelas.");
+    const comentario = val("ac").trim() || null;
+    const { error } = await supabase.from("avaliacoes").insert({ pedido_id: x.id, fornecedor_id: x.fornecedor_id, empresario_id: me.id, nota, comentario });
+    if (error) return toast(error.code === "23505" ? "Você já avaliou este pedido." : "Só é possível avaliar pedidos enviados.");
+    toast("Obrigado pela avaliação!"); go("pedidos");
+  }
+
   const Back = ({ to, children }: { to: () => void; children?: React.ReactNode }) => (
     <div className="top"><button className="ib" aria-label="Voltar" onClick={to}><Ic k="back" /></button>{children}</div>
   );
@@ -241,7 +297,48 @@ export function ForneceApp() {
         <label>E-mail<input id="em" type="email" autoComplete="username" /></label>
         <label>Senha<input id="sn" type="password" autoComplete="current-password" onKeyDown={(e) => e.key === "Enter" && login()} /></label>
         <button className="btn or" disabled={busy} onClick={login}>{busy ? "Entrando..." : "Entrar"}</button>
+        <button className="linkbtn" onClick={() => setScr("esqueci")}>Esqueci minha senha</button>
         <button className="btn ghost" onClick={() => setScr("tipo")}>Criar conta</button></div>); break;
+    case "esqueci": body = (
+      <div className="scr"><Back to={() => setScr("login")} /><h1>Recuperar senha</h1>
+        <p className="mute">Enviaremos um link para você criar uma nova senha.</p>
+        <label>E-mail da conta<input id="re" type="email" autoComplete="username" onKeyDown={(e) => e.key === "Enter" && esqueci()} /></label>
+        <button className="btn or" disabled={busy} onClick={esqueci}>{busy ? "Enviando..." : "Enviar link"}</button></div>); break;
+    case "ia": body = (<>
+      <div className="scr"><Back to={() => go("feed")} /><h1>Busca inteligente</h1>
+        <p className="mute">Conte o que seu negócio precisa e encontramos produtos do catálogo para você.</p>
+        <label>O que você precisa?<textarea rows={4} value={ia.texto} maxLength={600} placeholder="Ex.: Tenho um restaurante e preciso abastecer a cozinha e a limpeza para o mês"
+          onChange={(e) => setIa((v) => ({ ...v, texto: e.target.value }))} /></label>
+        <button className="btn or" disabled={ia.busy} onClick={buscarIA}><Ic k="star" />{ia.busy ? "Procurando..." : "Encontrar produtos"}</button>
+        {ia.resumo && <p className="ai-note">{ia.resumo}</p>}
+        {ia.prods && (ia.prods.length ? ia.prods.map((p) => <Card key={p.id} p={p} />) : <p className="mute" style={{ marginTop: 12 }}>Nenhum produto do catálogo atende a esse pedido.</p>)}
+      </div><Nav a="feed" /></>); break;
+    case "forn": {
+      const own = me?.id === d.pf.id;
+      body = (<><div className="scr"><Back to={() => (own ? setScr("perfil") : go("feed"))} />
+        <h1>{d.pf.empresa}</h1><p className="mute">{[d.pf.categoria, d.pf.cidade].filter(Boolean).join(" · ")}</p>
+        <div className="rating-box"><b>{d.av.length ? d.nota.toFixed(1) : "—"}</b><div><Stars n={d.nota} size={20} />
+          <div className="mute">{d.av.length ? `${d.av.length} avaliaç${d.av.length === 1 ? "ão" : "ões"}` : "Ainda sem avaliações"}</div></div></div>
+        <h2>Comentários</h2>
+        {d.av.length ? d.av.map((a: any) => (
+          <div key={a.id} className="pc" style={{ display: "block" }}><Stars n={a.nota} />
+            <div className="nm" style={{ fontSize: 14, marginTop: 4 }}>{a.autor?.empresa ?? "Empresário"}</div>
+            {a.comentario && <p style={{ marginTop: 4 }}>{a.comentario}</p>}
+            <div className="mute" style={{ fontSize: 12, marginTop: 4 }}>{new Date(a.criado_em).toLocaleDateString("pt-BR")}</div></div>
+        )) : <p className="mute">Nenhum comentário ainda.</p>}
+        <h2>Produtos</h2>{d.prods.length ? d.prods.map((p: Prod) => <Card key={p.id} p={p} />) : <p className="mute">Sem produtos publicados.</p>}
+      </div><Nav a={own ? "perfil" : "feed"} /></>);
+      break;
+    }
+    case "avaliar": body = (
+      <div className="scr"><Back to={() => go("pedidos")} /><h1>Avaliar pedido</h1>
+        <p className="mute">{x.qtd} {pl(x.qtd, x.unidade)} de {x.nome}</p>
+        <label>Sua nota</label>
+        <div className="star-pick" role="radiogroup" aria-label="Nota">{[1, 2, 3, 4, 5].map((i) => (
+          <button key={i} role="radio" aria-checked={nota === i} aria-label={`${i} estrela${i > 1 ? "s" : ""}`} className={i <= nota ? "on" : ""} onClick={() => setNota(i)}>
+            <svg viewBox="0 0 24 24"><path d={ICONS["star"]} /></svg></button>))}</div>
+        <label>Comentário (opcional)<textarea id="ac" rows={4} maxLength={1000} placeholder="Como foi a negociação, a entrega e a qualidade?" /></label>
+        <button className="btn or" onClick={enviarAvaliacao}>Enviar avaliação</button></div>); break;
     case "tipo": body = (
       <div className="scr"><Back to={() => setScr("splash")} /><h1>Criar conta</h1><p className="mute">Selecione o tipo de conta</p>
         <button className={"opt " + (role === "f" ? "sel" : "")} onClick={() => setRole("f")}><Ic k="store" /><span><b>Sou Fornecedor</b><span className="mute">Quero divulgar meus produtos</span></span></button>
@@ -269,6 +366,7 @@ export function ForneceApp() {
       <div className="scr"><div className="top"><input style={{ margin: 0 }} placeholder="Buscar produto, fornecedor ou cidade" value={q}
         onChange={(e) => { const v = e.target.value; setQ(v); clearTimeout(searchT.current); searchT.current = setTimeout(() => load("feed", undefined, { q: v }), 250); }} /></div>
         <div className="chips">{CATS.map((c) => <button key={c} className={"chip " + (cat === c ? "on" : "")} onClick={() => { setCat(c); load("feed", undefined, { cat: c }); }}>{c}</button>)}</div>
+        {me?.tipo === "e" && <button className="ai-cta" onClick={() => setScr("ia")}><Ic k="star" /><span><b>Busca inteligente</b><span className="mute">Descreva o que precisa e a IA encontra os produtos</span></span></button>}
         <h2>Destaques para você</h2>
         {d?.length ? d.map((p: Prod) => <Card key={p.id} p={p} />) : <p className="mute">Nada encontrado. Tente outro termo ou categoria.</p>}
       </div><Nav a="feed" /></>); break;
@@ -281,7 +379,9 @@ export function ForneceApp() {
         <div className="scr"><Back to={() => go(mine ? "meus" : "feed")}><span style={{ flex: 1 }} />
           <button className="ib fav" aria-label="Favoritar" onClick={() => fav(p.id)}><Ic k="heart" f={!!p.fav} /></button></Back>
           <div className="hero"><Ic k={p.icone} /></div>
-          <h1 style={{ marginTop: 14 }}>{p.nome}</h1><p className="mute">Fornecedor: {p.fornecedor}</p>
+          <h1 style={{ marginTop: 14 }}>{p.nome}</h1><button className="forn-link" onClick={() => go("forn", p.fornecedor_id)}>
+            <span className="mute">Fornecedor: <b>{p.fornecedor}</b></span>
+            <span className="forn-rate"><Stars n={(d as any).nota} />{(d as any).nAval ? ` ${(d as any).nota.toFixed(1)} (${(d as any).nAval})` : " Sem avaliações"}</span></button>
           <div className="row"><span>Preço atacado</span><span className="price">{brl(p.preco)} / {p.unidade}</span></div>
           <div className="row"><span>Quantidade mínima</span><b>{p.qtd_min} {pl(p.qtd_min, p.unidade)}</b></div>
           <div className="row"><span>Origem</span><b>{p.cidade || "—"}</b></div>
@@ -333,11 +433,15 @@ export function ForneceApp() {
                 <button className="btn ghost sm2" onClick={() => st(o.id, "Recusado")}>Recusar</button></>}
               {o.status === "Aguardando envio" && <button className="btn or sm2" onClick={() => st(o.id, "Enviado")}>Marcar enviado</button>}
               <button className="btn ghost sm2" onClick={() => go("chat", o.cliente_id)}>Conversar</button></div>}
+            {!f && o.status === "Enviado" && (o.avaliado
+              ? <div className="mute" style={{ marginTop: 6 }}>Você já avaliou este pedido.</div>
+              : <button className="btn or sm2" onClick={() => { setNota(0); setX(o); setScr("avaliar"); }}><Ic k="star" />Avaliar fornecedor</button>)}
           </div>)) : <p className="mute" style={{ marginTop: 12 }}>Nenhum pedido por enquanto.</p>}
       </div><Nav a="pedidos" /></>);
       break;
     }
     case "perfil": body = (<><div className="scr"><h1>{me?.empresa}</h1><p className="mute">{me?.email} · {me?.tipo === "f" ? "Fornecedor" : "Empresário"}</p>
+      {me?.tipo === "f" && <button className="menu" onClick={() => go("forn", me.id)}><Ic k="star" />Minhas avaliações</button>}
       <h2>Diferenciais do Fornece Já</h2><div className="diff">
         {[["star", "Avaliação de fornecedores"], ["trophy", "Mais vendidos"], ["bell", "Promoções"], ["pin", "Busca por estado/cidade"], ["file", "Catálogo em PDF"], ["card", "Pagamento integrado"], ["truck", "Rastreio de entrega"]].map(([k, t]) => <span key={t}><Ic k={k!} />{t}</span>)}</div>
       <button className="btn ghost" onClick={() => supabase.auth.signOut()}>Sair</button></div><Nav a="perfil" /></>); break;

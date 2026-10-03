@@ -14,6 +14,58 @@ export type Database = {
   }
   public: {
     Tables: {
+      avaliacoes: {
+        Row: {
+          comentario: string | null
+          criado_em: string
+          empresario_id: string
+          fornecedor_id: string
+          id: number
+          nota: number
+          pedido_id: number
+        }
+        Insert: {
+          comentario?: string | null
+          criado_em?: string
+          empresario_id: string
+          fornecedor_id: string
+          id?: number
+          nota: number
+          pedido_id: number
+        }
+        Update: {
+          comentario?: string | null
+          criado_em?: string
+          empresario_id?: string
+          fornecedor_id?: string
+          id?: number
+          nota?: number
+          pedido_id?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "avaliacoes_empresario_id_fkey"
+            columns: ["empresario_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "avaliacoes_fornecedor_id_fkey"
+            columns: ["fornecedor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "avaliacoes_pedido_id_fkey"
+            columns: ["pedido_id"]
+            isOneToOne: true
+            referencedRelation: "pedidos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       favoritos: {
         Row: {
           produto_id: number
