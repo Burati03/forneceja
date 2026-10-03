@@ -20,7 +20,7 @@ export class GatewayError extends Error {
 }
 
 /** Streams a Responses call and returns the final text. */
-export async function askModel(messages: ModelMessage[]): Promise<string> {
+export async function askModel(instructions: string, messages: ModelMessage[]): Promise<string> {
   const apiKey = process.env["LOVABLE_API_KEY"];
   if (!apiKey) throw new GatewayError(401, "Busca inteligente não configurada.");
   const provider = createOpenAI({
@@ -32,6 +32,7 @@ export async function askModel(messages: ModelMessage[]): Promise<string> {
   let failure: unknown;
   const result = streamText({
     model: provider.responses(MODEL),
+    instructions,
     messages,
     maxRetries: 0,
     onError: ({ error }) => { failure = error; console.error("AI gateway error", error); },

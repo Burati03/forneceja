@@ -18,15 +18,11 @@ export const buscarComIA = createServerFn({ method: "POST" })
       `#${p.id} | ${p.nome} | ${p.categoria ?? ""} | R$ ${p.preco}/${p.unidade} (mín. ${p.qtd_min}) | ${p.p?.empresa ?? ""}, ${p.p?.cidade ?? ""} | ${p.descricao ?? ""}`,
     ).join("\n");
     try {
-      const text = await askModel([
-        {
-          role: "system",
-          content:
+      const text = await askModel(
             "Você ajuda empresários brasileiros a achar produtos de atacado num catálogo. Escolha só produtos do catálogo que atendam à necessidade, do mais ao menos relevante (no máximo 8). " +
             'Responda APENAS com JSON: {"ids":[números],"resumo":"uma frase curta em português explicando a escolha"}. Se nada servir, ids vazio e explique no resumo.',
-        },
-        { role: "user", content: `Catálogo:\n${catalogo}\n\nNecessidade do empresário: ${data.pedido}` },
-      ]);
+        [{ role: "user", content: `Catálogo:\n${catalogo}\n\nNecessidade do empresário: ${data.pedido}` }],
+      );
       const json = JSON.parse(text.slice(text.indexOf("{"), text.lastIndexOf("}") + 1));
       const valid = new Set((prods || []).map((p) => p.id));
       const ids = (Array.isArray(json.ids) ? json.ids : []).map(Number).filter((i: number) => valid.has(i));
