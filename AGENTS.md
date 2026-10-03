@@ -8,3 +8,5 @@
 > Commits you push to the connected branch sync back to Lovable and show up in
 > the editor, so keep the branch in a working state.
 <!-- LOVABLE:END -->
+
+- The Fornece Já app is a single-screen state machine in src/components/fornece, talking to the database directly with RLS; privileged actions (view counts, order status) go through SECURITY DEFINER RPCs. Why: mirrors the original mobile-style app with minimal routing.
