@@ -34,7 +34,7 @@ export async function askModel(messages: ModelMessage[]): Promise<string> {
     model: provider.responses(MODEL),
     messages,
     maxRetries: 0,
-    onError: ({ error }) => { failure = error; },
+    onError: ({ error }) => { failure = error; console.error("AI gateway error", error); },
     providerOptions: {
       openai: {
         forceReasoning: true,
