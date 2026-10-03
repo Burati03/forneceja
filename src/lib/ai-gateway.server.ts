@@ -45,7 +45,8 @@ export async function askModel(messages: ModelMessage[]): Promise<string> {
       },
     },
   });
-  const text = await result.text.catch((e) => { failure ??= e; return ""; });
+  let text = "";
+  try { text = await result.text; } catch (e) { failure ??= e; }
   if (failure) {
     const status = (failure as any)?.statusCode ?? 500;
     const msg =

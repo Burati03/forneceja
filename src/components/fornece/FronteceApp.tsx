@@ -84,7 +84,7 @@ export function ForneceApp() {
         await supabase.rpc("ver_produto", { _id: arg });
         const { data: r, error } = await supabase.from("produtos").select(PSEL).eq("id", arg).single(); err(error);
         const fs = await favIds();
-        const { data: av } = await supabase.from("avaliacoes").select("nota").eq("fornecedor_id", r.fornecedor_id);
+        const { data: av } = await supabase.from("avaliacoes").select("nota").eq("fornecedor_id", r!.fornecedor_id);
         const notas = (av || []).map((a) => a.nota);
         data = { ...mapP(r), fav: fs.has(arg), nota: media(notas), nAval: notas.length };
       } else if (s === "forn") {
