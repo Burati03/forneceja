@@ -18,7 +18,7 @@ const ICONS: Record<string, string> = {
   can: "M6 6c0-1.5 2.7-3 6-3s6 1.5 6 3v12c0 1.5-2.7 3-6 3s-6-1.5-6-3zM6 6c0 1.5 2.7 3 6 3s6-1.5 6-3M6 12c0 1.5 2.7 3 6 3s6-1.5 6-3", bag: "M5 8h14l-1 13H6zM9 8V6a3 3 0 0 1 6 0v2",
 };
 const Ic = ({ k, f }: { k: string; f?: boolean }) => (
-  <svg className={"i" + (f ? " f" : "")} viewBox="0 0 24 24" aria-hidden="true"><path d={ICONS[k] || ICONS.box} /></svg>
+  <svg className={"i" + (f ? " f" : "")} viewBox="0 0 24 24" aria-hidden="true"><path d={ICONS[k] || ICONS["box"]} /></svg>
 );
 const PL: Record<string, string> = { unidade: "unidades", caixa: "caixas", fardo: "fardos", pacote: "pacotes", "peça": "peças", "galão": "galões" };
 const pl = (n: number, u: string) => (+n === 1 ? u : PL[u] || u);
@@ -116,7 +116,7 @@ export function ForneceApp() {
     if (!p) {
       const md: any = user.user_metadata || {};
       if (!md.tipo) return null;
-      const ins = { id: user.id, tipo: md.tipo, empresa: md.empresa || user.email || "Minha empresa", email: user.email, categoria: md.categoria || null, cidade: md.cidade || null };
+      const ins = { id: user.id, tipo: md.tipo, empresa: md.empresa || user.email || "Minha empresa", email: user.email ?? null, categoria: md.categoria || null, cidade: md.cidade || null };
       const { error } = await supabase.from("profiles").insert(ins);
       if (error) return null;
       await supabase.from("profiles_private").insert({ id: user.id, documento: md.documento || null, documento_tipo: md.documento_tipo || "cnpj", telefone: md.telefone || null });
@@ -279,7 +279,7 @@ export function ForneceApp() {
       const p = d as Prod, mine = me?.tipo === "f";
       body = (
         <div className="scr"><Back to={() => go(mine ? "meus" : "feed")}><span style={{ flex: 1 }} />
-          <button className="ib fav" aria-label="Favoritar" onClick={() => fav(p.id)}><Ic k="heart" f={p.fav} /></button></Back>
+          <button className="ib fav" aria-label="Favoritar" onClick={() => fav(p.id)}><Ic k="heart" f={!!p.fav} /></button></Back>
           <div className="hero"><Ic k={p.icone} /></div>
           <h1 style={{ marginTop: 14 }}>{p.nome}</h1><p className="mute">Fornecedor: {p.fornecedor}</p>
           <div className="row"><span>Preço atacado</span><span className="price">{brl(p.preco)} / {p.unidade}</span></div>
@@ -339,7 +339,7 @@ export function ForneceApp() {
     }
     case "perfil": body = (<><div className="scr"><h1>{me?.empresa}</h1><p className="mute">{me?.email} · {me?.tipo === "f" ? "Fornecedor" : "Empresário"}</p>
       <h2>Diferenciais do Fornece Já</h2><div className="diff">
-        {[["star", "Avaliação de fornecedores"], ["trophy", "Mais vendidos"], ["bell", "Promoções"], ["pin", "Busca por estado/cidade"], ["file", "Catálogo em PDF"], ["card", "Pagamento integrado"], ["truck", "Rastreio de entrega"]].map(([k, t]) => <span key={t}><Ic k={k} />{t}</span>)}</div>
+        {[["star", "Avaliação de fornecedores"], ["trophy", "Mais vendidos"], ["bell", "Promoções"], ["pin", "Busca por estado/cidade"], ["file", "Catálogo em PDF"], ["card", "Pagamento integrado"], ["truck", "Rastreio de entrega"]].map(([k, t]) => <span key={t}><Ic k={k!} />{t}</span>)}</div>
       <button className="btn ghost" onClick={() => supabase.auth.signOut()}>Sair</button></div><Nav a="perfil" /></>); break;
     case "novo": body = (
       <div className="scr"><Back to={() => go("painel")} /><h1>Novo produto</h1>
