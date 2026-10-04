@@ -25,6 +25,7 @@ function ResetPassword() {
   const [busy, setBusy] = useState(false);
   const [s1, setS1] = useState("");
   const [s2, setS2] = useState("");
+  const [show, setShow] = useState(false);
 
   useEffect(() => {
     const { data: sub } = supabase.auth.onAuthStateChange((ev, session) => {
@@ -54,8 +55,10 @@ function ResetPassword() {
         <a className="btn or" href="/">Ir para o aplicativo</a>
       </>) : ready ? (<>
         <p className="mute">Escolha uma nova senha para sua conta.</p>
-        <label>Nova senha<input type="password" autoComplete="new-password" value={s1} onChange={(e) => setS1(e.target.value)} /></label>
-        <label>Repita a nova senha<input type="password" autoComplete="new-password" value={s2} onChange={(e) => setS2(e.target.value)} /></label>
+        <label>Nova senha<span className="pw-wrap"><input type={show ? "text" : "password"} autoComplete="new-password" value={s1} onChange={(e) => setS1(e.target.value)} />
+          <button type="button" className="pw-eye" onClick={() => setShow((v) => !v)}>{show ? "Ocultar" : "Mostrar"}</button></span></label>
+        <label>Repita a nova senha<span className="pw-wrap"><input type={show ? "text" : "password"} autoComplete="new-password" value={s2} onChange={(e) => setS2(e.target.value)} />
+          <button type="button" className="pw-eye" onClick={() => setShow((v) => !v)}>{show ? "Ocultar" : "Mostrar"}</button></span></label>
         <button className="btn or" disabled={busy} onClick={salvar}>{busy ? "Salvando..." : "Salvar nova senha"}</button>
         {msg && <p className="dm">{msg}</p>}
       </>) : (<>
