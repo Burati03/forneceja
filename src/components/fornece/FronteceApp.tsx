@@ -440,7 +440,7 @@ export function ForneceApp() {
         <div className="scr"><Back to={() => setScr("tipo")} /><h1>Cadastro {f ? "Fornecedor" : "Comprador"}</h1>
           <div className="person-type" role="group" aria-label="Tipo de pessoa">
             <button className={"chip " + (pf ? "on" : "")} aria-pressed={pf} onClick={() => setDocTipo("cpf")}>Pessoa física</button>
-            <button className={"chip " + (!pf ? "on" : "")} aria-pressed={!pf} onClick={() => setDocTipo("cnpj")}>Pessoa jurídica</button></div>}
+            <button className={"chip " + (!pf ? "on" : "")} aria-pressed={!pf} onClick={() => setDocTipo("cnpj")}>Pessoa jurídica</button></div>
           <label>{pf ? "Nome completo" : "Nome da empresa"}<input id="c1" /></label>
           <label>{pf ? "CPF" : "CNPJ"}<input id="c2" key={pf ? "cpf" : "cnpj"} inputMode="numeric" maxLength={pf ? 14 : 18} placeholder={pf ? "000.000.000-00" : "00.000.000/0000-00"} /></label>
           <label>Telefone<input id="c3" type="tel" /></label>
