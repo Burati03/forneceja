@@ -2,6 +2,10 @@
 @source "../src";
 @import "tw-animate-css";
 
+#lovable-badge {
+  display: none !important;
+}
+
 @custom-variant dark (&:is(.dark *));
 
 /*
@@ -840,6 +844,16 @@
             color: #555
         }
 
+        .t4 {
+            background: #DDF3E4;
+            color: #1B6B38
+        }
+
+        .t5 {
+            background: #ECEEF2;
+            color: #555
+        }
+
         .dm {
             margin-top: 14px;
             font-size: 12px;
@@ -867,6 +881,36 @@
 .star-pick button.on svg{fill:var(--or)}
 .rating-box{display:flex;gap:14px;align-items:center;background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:14px;margin-top:12px}
 .rating-box>b{font-size:34px;font-weight:800;color:var(--navy)}
+.profile-summary{display:flex;align-items:center;gap:14px;margin:10px 0 14px;animation:fade .3s both}
+.profile-summary-info{min-width:0}
+.profile-summary-info h1{overflow-wrap:anywhere}
+.profile-summary-info .mute{margin-top:3px;overflow-wrap:anywhere}
+.profile-avatar{width:76px;height:76px;border-radius:50%;overflow:hidden;display:grid;place-items:center;flex:none;background:var(--tint);color:var(--navy);border:3px solid #fff;box-shadow:0 2px 10px #051f4722}
+.profile-avatar img{width:100%;height:100%;object-fit:cover}
+.profile-avatar .i{width:32px;height:32px}
+.profile-description{margin:10px 0;padding:12px;background:var(--card);border-radius:var(--r);line-height:1.45}
+.photo-picker{display:flex;align-items:center;gap:12px;padding:12px;background:var(--card);border:1px solid var(--line);border-radius:var(--r);cursor:pointer}
+.photo-picker>span{display:flex;align-items:center;gap:8px;color:var(--navy);font-weight:700}
+.photo-picker input{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
+.photo-hint{margin-top:6px}
+.remember-login{display:flex;align-items:center;gap:10px;margin-top:12px;padding:10px 12px;background:var(--card);border:1px solid var(--line);border-radius:var(--r);color:var(--ink);cursor:pointer}
+.remember-login input{width:18px;height:18px;margin:0;accent-color:var(--or);flex:none}
+.remember-login span{font-size:14px}
+.remember-login small{display:block;color:var(--mute);font-size:12px;font-weight:400;margin-top:2px}
+.negotiation-card{width:100%;padding:14px;background:var(--card);border:1px solid var(--line);border-left:4px solid var(--or);border-radius:var(--r);animation:fade .3s both}
+.negotiation-card.accepted{border-left-color:#219653;animation:negotiation-accepted .5s both}
+.negotiation-title{display:flex;align-items:center;gap:8px;margin-bottom:8px;color:var(--navy)}
+.negotiation-title .i{color:var(--or)}
+.negotiation-row{display:flex;justify-content:space-between;gap:12px;padding:5px 0;font-size:14px}
+.negotiation-row span{color:var(--mute)}
+.negotiation-total{border-top:1px solid var(--line);margin-top:4px;padding-top:9px;font-size:16px}
+.negotiation-total b{color:var(--or)}
+.negotiation-parties,.negotiation-payment-note{font-size:12px;line-height:1.45;margin-top:8px}
+.negotiation-success{display:flex;align-items:center;gap:8px;color:#16723c;margin-bottom:10px;animation:fade .25s both}
+.checkmark{display:grid;place-items:center;width:28px;height:28px;border-radius:50%;background:#dff5e7;color:#16723c;font-size:20px;font-weight:800;animation:pop .4s both}
+.negotiation-paid{margin-top:8px;color:#16723c;font-weight:700;font-size:13px}
+.menu:disabled{opacity:.65;cursor:default;transform:none}
+@keyframes negotiation-accepted{0%{transform:scale(.96);opacity:.65}70%{transform:scale(1.02)}100%{transform:scale(1);opacity:1}}
 .forn-link{display:flex;flex-direction:column;gap:2px;background:none;border:0;padding:0;text-align:left;cursor:pointer;margin-top:4px;color:var(--ink)}
 .forn-rate{font-size:13px;font-weight:600;color:var(--mute)}
 .linkbtn{background:none;border:0;color:var(--navy);font-weight:600;text-decoration:underline;cursor:pointer;margin-top:12px;font-size:14px}

@@ -26,12 +26,36 @@ const Ic = ({ k, f }: { k: string; f?: boolean }) => (
 );
 const PL: Record<string, string> = { unidade: "unidades", caixa: "caixas", fardo: "fardos", pacote: "pacotes", "peça": "peças", "galão": "galões" };
 const pl = (n: number, u: string) => (+n === 1 ? u : PL[u] || u);
-const STs = ["Em negociação", "Aguardando envio", "Enviado", "Recusado"];
+const STs = ["Em negociação", "Aguardando pagamento", "Pago", "Aguardando envio", "Enviado", "Recusado"];
 const CATS = ["Todos", "Alimentos", "Bebidas", "Roupas", "Limpeza", "Eletrônicos", "Químicos", "Agropecuária", "Construção", "Embalagens", "Higiene", "Autopeças"];
 const brl = (n: number) => "R$ " + Number(n).toFixed(2).replace(".", ",");
+const SAVED_LOGIN_KEY = "forneceja.saved-login";
+const SAVED_EMAIL_KEY = "forneceja.saved-email";
+const HELP_COPY: Partial<Record<Scr, { title: string; paragraphs: string[] }>> = {
+  splash: { title: "Como começar", paragraphs: ["Entre com seu e-mail ou crie uma conta como comprador ou fornecedor.", "Compradores encontram produtos e negociam pelo chat. Fornecedores publicam produtos e atendem pedidos."] },
+  login: { title: "Ajuda para entrar", paragraphs: ["Use o mesmo e-mail cadastrado e sua senha. Confira se não há espaços no e-mail.", "Marque “Manter login” para conservar a sessão neste dispositivo; desmarque para encerrar a sessão ao fechar o navegador. O aplicativo nunca armazena sua senha."] },
+  feed: { title: "Encontrar produtos", paragraphs: ["Busque por produto, fornecedor ou cidade e use as categorias para filtrar.", "Abra os detalhes para conversar com o fornecedor ou enviar uma solicitação de negociação."] },
+  favs: { title: "Seus favoritos", paragraphs: ["Salve produtos tocando no coração na tela de detalhes.", "Os favoritos ficam associados à sua conta para você encontrá-los depois de entrar."] },
+  conversas: { title: "Mensagens", paragraphs: ["Abra uma conversa para falar com comprador ou fornecedor.", "Pedidos de negociação e confirmações aparecem em cartões dentro da conversa."] },
+  chat: { title: "Negociação no chat", paragraphs: ["Confira produto, quantidade e valor no cartão do pedido.", "Comprador e fornecedor precisam aceitar a negociação. Depois, o comprador pode pagar no Mercado Pago."] },
+  pedidos: { title: "Pedidos", paragraphs: ["Acompanhe negociações e pedidos enviados nesta tela.", "Quando os dois lados aceitarem, o comprador poderá pagar. O fornecedor só deve marcar como enviado após a confirmação do pagamento."] },
+  perfil: { title: "Seu perfil", paragraphs: ["Edite suas informações e foto para que outras empresas conheçam seu negócio.", "Fornecedores podem conectar o Mercado Pago para receber pagamentos. Compradores podem revisar pedidos e favoritos."] },
+  editar: { title: "Editar perfil", paragraphs: ["Atualize o nome, descrição, cidade e atividade. A foto deve ser JPG, PNG ou WebP e ter até 2 MB.", "Toque em salvar para publicar as alterações no seu perfil."] },
+  meus: { title: "Seus produtos", paragraphs: ["Veja os produtos publicados na sua conta de fornecedor.", "Use “Adicionar produto” para publicar um item com preço, unidade e quantidade mínima."] },
+  painel: { title: "Painel do fornecedor", paragraphs: ["Acompanhe visualizações, pedidos, mensagens e avaliações.", "Para receber pagamentos pelo marketplace, conecte sua própria conta Mercado Pago no perfil."] },
+  det: { title: "Detalhes do produto", paragraphs: ["Confira preço, quantidade mínima, fornecedor e descrição antes de negociar.", "A solicitação cria um cartão de negociação no chat com o fornecedor."] },
+  ia: { title: "Busca inteligente", paragraphs: ["Descreva o que sua empresa precisa e a busca sugere produtos do catálogo.", "Revise os detalhes e negocie diretamente com o fornecedor."] },
+  tipo: { title: "Tipo de conta", paragraphs: ["Escolha comprador para encontrar produtos e negociar compras.", "Escolha fornecedor para publicar produtos e receber pedidos."] },
+  cad: { title: "Criar conta", paragraphs: ["Preencha os dados solicitados e use um e-mail válido para confirmar a conta.", "A senha deve ter pelo menos seis caracteres. Dados de documento são usados para identificar o tipo de conta."] },
+  esqueci: { title: "Recuperar senha", paragraphs: ["Informe o e-mail da conta para receber um link de redefinição.", "Se não encontrar a mensagem, confira a pasta de spam e confirme se digitou o mesmo e-mail do cadastro."] },
+  novo: { title: "Publicar produto", paragraphs: ["Informe nome, preço, quantidade mínima, unidade e categoria.", "O produto será exibido no catálogo após a publicação."] },
+  forn: { title: "Perfil do fornecedor", paragraphs: ["Confira a descrição, as avaliações e os produtos deste fornecedor.", "Use o chat para tirar dúvidas e enviar uma solicitação de negociação."] },
+  avaliar: { title: "Avaliar pedido", paragraphs: ["Escolha uma nota de uma a cinco estrelas e, se quiser, descreva sua experiência.", "A avaliação fica associada ao pedido enviado."] },
+};
 
 type Me = { id: string; tipo: "f" | "e"; empresa: string; email: string | null; descricao: string | null; avatar_path: string | null; atuacao: string | null; categoria: string | null; cidade: string | null };
 type Prod = { id: number; nome: string; preco: number; unidade: string; qtd_min: number; categoria: string | null; descricao: string | null; icone: string; views: number; fornecedor_id: string; fornecedor: string; cidade: string | null; fav?: boolean };
+type Negotiation = { id: number; qtd: number; preco_unitario: number; status: string; comprador_aceitou: boolean; fornecedor_aceitou: boolean; pagamento_status: string; produto: { id: number; nome: string; unidade: string; fornecedor_id: string } | null };
 type Scr = "splash" | "login" | "tipo" | "cad" | "feed" | "favs" | "meus" | "det" | "conversas" | "chat" | "painel" | "pedidos" | "perfil" | "editar" | "novo" | "esqueci" | "ia" | "forn" | "avaliar";
 
 const PSEL = "*, p:profiles!produtos_fornecedor_id_fkey(empresa,cidade)";
@@ -52,6 +76,15 @@ export function ForneceApp() {
   const [q, setQ] = useState("");
   const [toastMsg, setToast] = useState("");
   const [help, setHelp] = useState(false);
+  const [rememberLogin, setRememberLogin] = useState(() => {
+    try { return typeof window !== "undefined" && localStorage.getItem(SAVED_LOGIN_KEY) !== "false"; }
+    catch { return false; }
+  });
+  const [savedEmail] = useState(() => {
+    try { return typeof window !== "undefined" && localStorage.getItem(SAVED_LOGIN_KEY) !== "false" ? localStorage.getItem(SAVED_EMAIL_KEY) || "" : ""; }
+    catch { return ""; }
+  });
+  const [mercadoPagoConnected, setMercadoPagoConnected] = useState(false);
   const [role, setRole] = useState<"f" | "e" | null>(null);
   const [docTipo, setDocTipo] = useState<"cpf" | "cnpj">("cpf");
   const [busy, setBusy] = useState(false);
@@ -109,6 +142,9 @@ export function ForneceApp() {
         const { data: pf, error } = await supabase.from("profiles").select("id,tipo,empresa,email,descricao,avatar_path,atuacao,categoria,cidade").eq("id", m.id).single(); err(error);
         setMe(pf as Me);
         setAvatarUrl(await signedPhoto(pf?.avatar_path));
+        const { data: connected, error: connectionError } = await supabase.rpc("mercado_pago_conectado");
+        if (connectionError) throw new Error("Não foi possível verificar sua conexão com o Mercado Pago.");
+        setMercadoPagoConnected(connected);
         data = pf;
       } else if (s === "conversas" && m) {
         const { data: msgs, error } = await supabase.from("mensagens").select("de_id,para_id,texto,id").order("id", { ascending: false }); err(error);
@@ -122,7 +158,28 @@ export function ForneceApp() {
         const { data: com } = await supabase.from("profiles").select("id,empresa").eq("id", arg).single();
         const { data: msgs, error } = await supabase.from("mensagens").select("de_id,texto,criado_em")
           .or(`and(de_id.eq.${m.id},para_id.eq.${arg}),and(de_id.eq.${arg},para_id.eq.${m.id})`).order("id"); err(error);
-        data = { com, msgs: (msgs || []).map((r) => ({ ...r, hora: new Date(r.criado_em).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }) })) };
+        let orderQuery = supabase.from("pedidos")
+          .select("id,qtd,preco_unitario,status,comprador_aceitou,fornecedor_aceitou,pagamento_status,empresario_id,produto:produtos(id,nome,unidade,fornecedor_id)")
+          .order("id", { ascending: false }).limit(30);
+        if (m.tipo === "e") {
+          orderQuery = orderQuery.eq("empresario_id", m.id);
+        } else {
+          const { data: products, error: productsError } = await supabase.from("produtos").select("id").eq("fornecedor_id", m.id);
+          err(productsError);
+          const productIds = (products || []).map((product) => product.id);
+          orderQuery = productIds.length
+            ? orderQuery.eq("empresario_id", arg).in("produto_id", productIds)
+            : orderQuery.eq("empresario_id", arg).in("produto_id", [-1]);
+        }
+        const { data: orders, error: ordersError } = await orderQuery; err(ordersError);
+        const negotiations = (orders || []).filter((order) =>
+          m.tipo === "e" ? order.produto?.fornecedor_id === arg : true
+        );
+        data = {
+          com,
+          msgs: (msgs || []).map((r) => ({ ...r, hora: new Date(r.criado_em).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }) })),
+          negotiations,
+        };
       } else if (s === "painel" && m) {
         const { data: ps } = await supabase.from("produtos").select("id,nome,preco,unidade,views").eq("fornecedor_id", m.id);
         const { count: msgs } = await supabase.from("mensagens").select("id", { count: "exact", head: true }).eq("para_id", m.id);
@@ -144,10 +201,10 @@ export function ForneceApp() {
           receita, unidades, st, linhas, media: notas.length ? (notas.reduce((a, b) => a + b, 0) / notas.length).toFixed(1) : "—", nAval: notas.length };
       } else if (s === "pedidos") {
         const { data: rows, error } = await supabase.from("pedidos")
-          .select("id,qtd,status,empresario_id,produto:produtos(nome,unidade,fornecedor_id),cliente:profiles!pedidos_empresario_id_fkey(empresa)").order("id", { ascending: false }); err(error);
+          .select("id,qtd,status,empresario_id,comprador_aceitou,fornecedor_aceitou,pagamento_status,preco_unitario,produto:produtos(nome,unidade,fornecedor_id),cliente:profiles!pedidos_empresario_id_fkey(empresa)").order("id", { ascending: false }); err(error);
         const { data: avs } = await supabase.from("avaliacoes").select("pedido_id");
         const aval = new Set((avs || []).map((a) => a.pedido_id));
-        data = (rows || []).map((o: any) => ({ avaliado: aval.has(o.id), fornecedor_id: o.produto?.fornecedor_id, id: o.id, qtd: o.qtd, status: o.status, nome: o.produto?.nome, unidade: o.produto?.unidade, cliente: o.cliente?.empresa, cliente_id: o.empresario_id }));
+        data = (rows || []).map((o) => ({ avaliado: aval.has(o.id), fornecedor_id: o.produto?.fornecedor_id, id: o.id, qtd: o.qtd, status: o.status, comprador_aceitou: o.comprador_aceitou, fornecedor_aceitou: o.fornecedor_aceitou, pagamento_status: o.pagamento_status, preco_unitario: o.preco_unitario, nome: o.produto?.nome, unidade: o.produto?.unidade, cliente: o.cliente?.empresa, cliente_id: o.empresario_id }));
       }
       if (id !== fresh.current) return;
       setD(data); setX(arg); setScr(s);
@@ -182,6 +239,17 @@ export function ForneceApp() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  useEffect(() => {
+    const result = new URLSearchParams(window.location.search).get("mercado_pago");
+    if (!result) return;
+    if (result === "conectado") toast("Conta Mercado Pago conectada para receber.");
+    else if (result === "sucesso") toast("Pagamento enviado para confirmação. O pedido será atualizado após a confirmação do Mercado Pago.");
+    else if (result === "pendente") toast("Pagamento pendente. A confirmação será atualizada pelo Mercado Pago.");
+    else toast("Não foi possível concluir a operação do Mercado Pago.");
+    window.history.replaceState({}, "", window.location.pathname);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const val = (id: string) => (document.getElementById(id) as HTMLInputElement | null)?.value || "";
   const togglePw = (id: string, btn: HTMLButtonElement) => {
     const el = document.getElementById(id) as HTMLInputElement | null;
@@ -193,19 +261,47 @@ export function ForneceApp() {
   };
   const Pw = ({ id, label, autoComplete, onEnter }: { id: string; label: string; autoComplete: string; onEnter?: () => void }) => (
     <label>{label}<span className="pw-wrap">
-      <input id={id} type="password" autoComplete={autoComplete} defaultValue="" readOnly onFocus={(e) => e.currentTarget.removeAttribute("readonly")} onKeyDown={(e) => e.key === "Enter" && onEnter?.()} />
+      <input id={id} type="password" autoComplete={autoComplete} defaultValue="" onKeyDown={(e) => e.key === "Enter" && onEnter?.()} />
       <button type="button" className="pw-eye" aria-pressed="false" onClick={(e) => togglePw(id, e.currentTarget)}>Mostrar</button>
     </span></label>
   );
 
   async function login() {
+    const email = val("em").trim().toLowerCase();
+    const password = val("sn");
+    if (!email.includes("@") || !password) return toast("Informe um e-mail válido e sua senha.");
     setBusy(true);
-    const { error } = await supabase.auth.signInWithPassword({ email: val("em").trim().toLowerCase(), password: val("sn") });
-    setBusy(false);
-    if (error) return toast(error.message.includes("confirm") ? "Confirme seu e-mail antes de entrar." : "E-mail ou senha incorretos.");
-    const m = await loadMe();
-    if (!m) return toast("Não foi possível carregar seu perfil.");
-    setMe(m); home(m);
+    try {
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) {
+        if (error.code === "email_not_confirmed" || error.message.toLowerCase().includes("confirm")) {
+          return toast("Confirme seu e-mail pelo link enviado antes de entrar.");
+        }
+        if (error.status === 429) return toast("Muitas tentativas. Aguarde um pouco e tente novamente.");
+        if (error.status === 400 || error.code === "invalid_credentials") return toast("E-mail ou senha incorretos. Confira os dados ou recupere sua senha.");
+        console.error("[login] Supabase authentication failed", error);
+        return toast("Não foi possível conectar à autenticação. Tente novamente.");
+      }
+      try {
+        if (rememberLogin) {
+          localStorage.setItem(SAVED_LOGIN_KEY, "true");
+          localStorage.setItem(SAVED_EMAIL_KEY, email);
+        } else {
+          localStorage.setItem(SAVED_LOGIN_KEY, "false");
+          localStorage.removeItem(SAVED_EMAIL_KEY);
+        }
+      } catch {
+        toast("Login realizado, mas não foi possível salvar sua preferência neste dispositivo.");
+      }
+      const m = await loadMe();
+      if (!m) return toast("Login confirmado, mas não foi possível carregar seu perfil. Tente novamente.");
+      setMe(m); home(m);
+    } catch (error) {
+      console.error("[login] Unexpected authentication error", error);
+      toast("Erro de conexão ao entrar. Verifique sua internet e tente novamente.");
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function cadastrar() {
@@ -238,9 +334,59 @@ export function ForneceApp() {
   async function pedir(p: Prod) {
     if (!me) return;
     const qtd = Math.max(parseInt(val("qt")) || p.qtd_min, p.qtd_min);
-    const { error } = await supabase.from("pedidos").insert({ produto_id: p.id, empresario_id: me.id, qtd });
+    const { error } = await supabase.from("pedidos").insert({ produto_id: p.id, empresario_id: me.id, qtd, preco_unitario: p.preco });
     if (error) return toast(error.message);
-    toast(`Orçamento de ${qtd} ${pl(qtd, p.unidade)} enviado!`); go("pedidos");
+    toast(`Solicitação de ${qtd} ${pl(qtd, p.unidade)} enviada!`);
+    go("chat", p.fornecedor_id);
+  }
+
+  async function aceitarNegociacao(orderId: number) {
+    const { error } = await supabase.rpc("aceitar_negociacao", { _id: orderId });
+    if (error) return toast(error.message || "Não foi possível aceitar a negociação.");
+    toast("Sua confirmação foi registrada.");
+    if (scr === "chat") go("chat", x);
+    else go("pedidos");
+  }
+
+  async function pagarPedido(orderId: number) {
+    setBusy(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("mercado-pago-checkout", { body: { orderId } });
+      if (error) {
+        if (error.context instanceof Response) {
+          const responseBody = await error.context.clone().json().catch(() => null);
+          throw new Error(responseBody?.error || error.message);
+        }
+        throw error;
+      }
+      if (!data?.url || typeof data.url !== "string") throw new Error(data?.error || "O Mercado Pago não retornou o endereço de pagamento.");
+      window.location.assign(data.url);
+    } catch (error) {
+      console.error("[checkout] Mercado Pago checkout failed", error);
+      const message = error instanceof Error ? error.message : "";
+      toast(message.includes("FunctionsFetchError") ? "Checkout indisponível. Verifique se as funções do Mercado Pago foram implantadas." : message || "Não foi possível iniciar o pagamento.");
+      setBusy(false);
+    }
+  }
+
+  async function conectarMercadoPago() {
+    setBusy(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("mercado-pago-connect", { body: {} });
+      if (error) {
+        if (error.context instanceof Response) {
+          const responseBody = await error.context.clone().json().catch(() => null);
+          throw new Error(responseBody?.error || error.message);
+        }
+        throw error;
+      }
+      if (!data?.url || typeof data.url !== "string") throw new Error(data?.error || "Não foi possível conectar ao Mercado Pago.");
+      window.location.assign(data.url);
+    } catch (error) {
+      console.error("[mercado-pago-connect] Could not start seller authorization", error);
+      toast(error instanceof Error ? error.message : "Não foi possível conectar ao Mercado Pago.");
+      setBusy(false);
+    }
   }
 
   async function snd() {
@@ -399,6 +545,7 @@ export function ForneceApp() {
   );
   const searchT = useRef<any>(null);
 
+  const chatNegotiations = (d?.negotiations || []) as Negotiation[];
   let body: React.ReactNode = null;
   switch (scr) {
     case "splash": body = (
@@ -408,16 +555,24 @@ export function ForneceApp() {
         <button className="btn ghost" onClick={() => { setRole(null); setScr("tipo"); }}>Criar conta</button>
         <p className="mute" style={{ textAlign: "center", marginTop: 18, color: "#fffc" }}>Fornecedor ou comprador</p></div>); break;
     case "login": body = (
-      <div className="scr"><Back to={() => setScr("splash")} /><img className="lg" src={logoCor.url} alt="Fornece Já" />
+      <div className="scr"><Back to={() => setScr("splash")}><HelpButton /></Back><img className="lg" src={logoCor.url} alt="Fornece Já" />
         <h1>Entrar</h1><p className="mute">Use o e-mail cadastrado na sua conta.</p>
         <p className="login-explain"><b>Comprador</b> é quem busca produtos para comprar, seja pessoa física ou jurídica, indústria, loja ou empresa. <b>Fornecedor</b> divulga produtos e atende pedidos.</p>
-        <label>E-mail<input id="em" type="email" autoComplete="username" /></label>
+        <label>E-mail<input id="em" type="email" autoComplete="username" defaultValue={savedEmail} /></label>
         <Pw id="sn" label="Senha" autoComplete="current-password" onEnter={login} />
+        <label className="remember-login"><input type="checkbox" checked={rememberLogin} onChange={(e) => {
+          const checked = e.target.checked;
+          setRememberLogin(checked);
+          try {
+            localStorage.setItem(SAVED_LOGIN_KEY, String(checked));
+            if (!checked) localStorage.removeItem(SAVED_EMAIL_KEY);
+          } catch { toast("Não foi possível salvar sua preferência neste dispositivo."); }
+        }} /><span>Manter login neste dispositivo <small>{rememberLogin ? "Sessão e e-mail salvos; a senha nunca é armazenada." : "A sessão termina ao fechar o navegador; senha nunca é armazenada."}</small></span></label>
         <button className="btn or" disabled={busy} onClick={login}>{busy ? "Entrando..." : "Entrar"}</button>
         <button className="linkbtn" onClick={() => setScr("esqueci")}>Esqueci minha senha</button>
         <button className="btn ghost" onClick={() => setScr("tipo")}>Criar conta</button></div>); break;
     case "esqueci": body = (
-      <div className="scr"><Back to={() => setScr("login")} /><h1>Recuperar senha</h1>
+      <div className="scr"><Back to={() => setScr("login")}><HelpButton /></Back><h1>Recuperar senha</h1>
         <p className="mute">Enviaremos um link para você criar uma nova senha.</p>
         <label>E-mail da conta<input id="re" type="email" autoComplete="username" onKeyDown={(e) => e.key === "Enter" && esqueci()} /></label>
         <button className="btn or" disabled={busy} onClick={esqueci}>{busy ? "Enviando..." : "Enviar link"}</button></div>); break;
@@ -459,14 +614,14 @@ export function ForneceApp() {
         <label>Comentário (opcional)<textarea id="ac" rows={4} maxLength={1000} placeholder="Como foi a negociação, a entrega e a qualidade?" /></label>
         <button className="btn or" onClick={enviarAvaliacao}>Enviar avaliação</button></div>); break;
     case "tipo": body = (
-      <div className="scr"><Back to={() => setScr("splash")} /><h1>Criar conta</h1><p className="mute">Selecione o tipo de conta</p>
+      <div className="scr"><Back to={() => setScr("splash")}><HelpButton /></Back><h1>Criar conta</h1><p className="mute">Selecione o tipo de conta</p>
         <button className={"opt " + (role === "f" ? "sel" : "")} onClick={() => setRole("f")}><Ic k="store" /><span><b>Sou Fornecedor</b><span className="mute">Quero divulgar meus produtos</span></span></button>
         <button className={"opt " + (role === "e" ? "sel" : "")} onClick={() => { setRole("e"); setDocTipo("cpf"); }}><Ic k="briefcase" /><span><b>Sou Comprador</b><span className="mute">Pessoa física ou jurídica que busca produtos para comprar</span></span></button>
         <button className="btn or" onClick={() => (role ? setScr("cad") : toast("Escolha um tipo de conta"))}>Continuar</button></div>); break;
     case "cad": {
       const f = role === "f", pf = !f && docTipo === "cpf";
       body = (
-        <div className="scr"><Back to={() => setScr("tipo")} /><h1>Cadastro {f ? "Fornecedor" : "Comprador"}</h1>
+        <div className="scr"><Back to={() => setScr("tipo")}><HelpButton /></Back><h1>Cadastro {f ? "Fornecedor" : "Comprador"}</h1>
           <div className="person-type" role="group" aria-label="Tipo de pessoa">
             <button className={"chip " + (pf ? "on" : "")} aria-pressed={pf} onClick={() => setDocTipo("cpf")}>Pessoa física</button>
             <button className={"chip " + (!pf ? "on" : "")} aria-pressed={!pf} onClick={() => setDocTipo("cnpj")}>Pessoa jurídica</button></div>
@@ -523,9 +678,36 @@ export function ForneceApp() {
     case "chat": body = (<>
       <div style={{ padding: "14px 18px", display: "flex", gap: 10, alignItems: "center", borderBottom: "1px solid var(--line)" }}>
         <button className="ib" aria-label="Voltar" onClick={() => go("conversas")}><Ic k="back" /></button><b>{d.com?.empresa}</b></div>
-      <div className="scr"><div className="chat">{d.msgs.length ? d.msgs.map((m: any, i: number) => (
-        <div key={i} className={"m " + (m.de_id === me?.id ? "me" : "")}>{m.texto}<small>{m.hora}</small></div>
-      )) : <p className="mute">Diga olá para começar a conversa.</p>}</div></div>
+      <div className="scr"><div className="chat">
+        {chatNegotiations.map((order) => {
+          const product = order.produto;
+          if (!product) return null;
+          const accepted = order.comprador_aceitou && order.fornecedor_aceitou;
+          const total = Number(order.preco_unitario) * order.qtd;
+          return <article key={`order-${order.id}`} className={`negotiation-card${accepted ? " accepted" : ""}`}>
+            {accepted && <div className="negotiation-success"><span className="checkmark">✓</span><b>Negociação aceita</b></div>}
+            <div className="negotiation-title"><Ic k="receipt" /><b>Pedido #{order.id} · {product.nome}</b></div>
+            <div className="negotiation-row"><span>Quantidade</span><b>{order.qtd} {pl(order.qtd, product.unidade)}</b></div>
+            <div className="negotiation-row"><span>Preço unitário</span><b>{brl(Number(order.preco_unitario))}</b></div>
+            <div className="negotiation-row negotiation-total"><span>Total</span><b>{brl(total)}</b></div>
+            {!accepted ? <>
+              <p className="negotiation-parties">
+                Comprador: {order.comprador_aceitou ? "aceitou" : "aguardando"} · Fornecedor: {order.fornecedor_aceitou ? "aceitou" : "aguardando"}
+              </p>
+              {((me?.tipo === "e" && !order.comprador_aceitou) || (me?.tipo === "f" && !order.fornecedor_aceitou)) &&
+                <button className="btn or sm2" onClick={() => aceitarNegociacao(order.id)}>Aceitar negociação</button>}
+            </> : order.status === "Aguardando pagamento" && me?.tipo === "e" ? <>
+              <p className="mute negotiation-payment-note">Pagamento seguro pelo Mercado Pago: cartões de crédito e débito, Pix e boleto conforme disponibilidade da conta.</p>
+              <button className="btn or" disabled={busy} onClick={() => pagarPedido(order.id)}>{busy ? "Abrindo checkout..." : "Pagar com Mercado Pago · " + brl(total)}</button>
+            </> : order.pagamento_status === "pago" || order.status === "Enviado" ?
+              <p className="negotiation-paid">Pagamento confirmado pelo Mercado Pago.</p> :
+              <p className="mute negotiation-payment-note">A negociação foi aceita. O comprador iniciará o pagamento no Mercado Pago.</p>}
+          </article>;
+        })}
+        {d.msgs.length ? d.msgs.map((m: any, i: number) => (
+          <div key={i} className={"m " + (m.de_id === me?.id ? "me" : "")}>{m.texto}<small>{m.hora}</small></div>
+        )) : !d.negotiations?.length && <p className="mute">Diga olá para começar a conversa.</p>}
+      </div></div>
       <div className="send"><input id="mi" placeholder="Digite sua mensagem..." onKeyDown={(e) => e.key === "Enter" && snd()} />
         <button aria-label="Enviar" onClick={snd}><Ic k="send" /></button></div></>); break;
     case "painel": body = (<>
@@ -560,12 +742,17 @@ export function ForneceApp() {
         {d?.length ? d.map((o: any) => (
           <div key={o.id} className="pc" style={{ display: "block" }}>
             <div className="nm">{f ? o.cliente : o.nome}</div><div className="mute">{o.qtd} {pl(o.qtd, o.unidade)} de {o.nome}</div>
+            <div className="mute">Total: {brl(Number(o.preco_unitario) * o.qtd)}</div>
             <span className={"tag t" + STs.indexOf(o.status)}>{o.status}</span>
+            {o.status === "Em negociação" && ((f && !o.fornecedor_aceitou) || (!f && !o.comprador_aceitou)) &&
+              <button className="btn or sm2" onClick={() => aceitarNegociacao(o.id)}>Aceitar negociação</button>}
             {f && <div className="act">
-              {o.status === "Em negociação" && <><button className="btn sm2" onClick={() => st(o.id, "Aguardando envio")}>Aceitar</button>
-                <button className="btn ghost sm2" onClick={() => st(o.id, "Recusado")}>Recusar</button></>}
-              {o.status === "Aguardando envio" && <button className="btn or sm2" onClick={() => st(o.id, "Enviado")}>Marcar enviado</button>}
-              <button className="btn ghost sm2" onClick={() => go("chat", o.cliente_id)}>Conversar</button></div>}
+              {o.status === "Em negociação" && <button className="btn ghost sm2" onClick={() => st(o.id, "Recusado")}>Recusar</button>}
+              {(o.status === "Pago" || o.status === "Aguardando envio") && <button className="btn or sm2" onClick={() => st(o.id, "Enviado")}>Marcar enviado</button>}
+            </div>}
+            <button className="btn ghost sm2" onClick={() => go("chat", f ? o.cliente_id : o.fornecedor_id)}>Conversar</button>
+            {!f && o.status === "Aguardando pagamento" && <button className="btn or sm2" disabled={busy} onClick={() => pagarPedido(o.id)}><Ic k="card" />Pagar com Mercado Pago</button>}
+            {o.pagamento_status === "pago" && <p className="negotiation-paid">Pagamento confirmado pelo Mercado Pago.</p>}
             {!f && o.status === "Enviado" && (o.avaliado
               ? <div className="mute" style={{ marginTop: 6 }}>Você já avaliou este pedido.</div>
               : <button className="btn or sm2" onClick={() => { setNota(0); setX(o); setScr("avaliar"); }}><Ic k="star" />Avaliar fornecedor</button>)}
@@ -574,11 +761,27 @@ export function ForneceApp() {
       break;
     }
     case "perfil": body = (<><div className="scr"><div className="screen-title"><span /><HelpButton /></div>
-      <div className="profile-summary"><Avatar url={avatarUrl} name={me?.empresa || "Perfil"} /><div><h1>{me?.empresa}</h1><p className="mute">{me?.tipo === "f" ? "Fornecedor" : "Comprador"}{me?.atuacao ? ` · ${me.atuacao}` : ""}</p></div></div>
-      <p className="mute">{me?.email}{me?.cidade ? ` · ${me.cidade}` : ""}</p>
+      <div className="profile-summary"><Avatar url={avatarUrl} name={me?.empresa || "Perfil"} /><div className="profile-summary-info"><h1>{me?.empresa}</h1><p className="mute">{me?.tipo === "f" ? "Fornecedor" : "Comprador"}{me?.atuacao ? ` · ${me.atuacao}` : ""}</p><p className="mute">{me?.email}</p>{me?.cidade && <p className="mute">{me.cidade}</p>}</div></div>
       {me?.descricao && <p className="profile-description">{me.descricao}</p>}
       <button className="menu" onClick={editarPerfil}><Ic k="user" />Editar perfil</button>
-      {me?.tipo === "f" && <button className="menu" onClick={() => go("forn", me.id)}><Ic k="star" />Minhas avaliações</button>}
+      {me?.tipo === "f" ? <>
+        <button className="menu" onClick={() => go("painel")}><Ic k="grid" />Painel do fornecedor</button>
+        <button className="menu" onClick={() => go("meus")}><Ic k="box" />Meus produtos</button>
+        <button className="menu" onClick={() => go("pedidos")}><Ic k="receipt" />Pedidos recebidos</button>
+        <button className="menu" onClick={() => go("conversas")}><Ic k="msg" />Conversas</button>
+        <button className="menu" onClick={() => go("forn", me.id)}><Ic k="star" />Minhas avaliações</button>
+        <button className="menu" disabled={busy || mercadoPagoConnected} onClick={conectarMercadoPago}><Ic k="card" />{mercadoPagoConnected ? "Mercado Pago conectado" : "Conectar Mercado Pago para receber"}</button>
+      </> : <>
+        <button className="menu" onClick={() => go("pedidos")}><Ic k="receipt" />Meus pedidos e pagamentos</button>
+        <button className="menu" onClick={() => go("favs")}><Ic k="heart" />Produtos favoritos</button>
+        <button className="menu" onClick={() => go("conversas")}><Ic k="msg" />Conversas com fornecedores</button>
+      </>}
+      <button className="menu" onClick={async () => {
+        if (!me?.email) return toast("Sua conta não tem um e-mail para recuperação de senha.");
+        const { error } = await supabase.auth.resetPasswordForEmail(me.email, { redirectTo: window.location.origin + "/reset-password" });
+        if (error) return toast("Não foi possível enviar o link de redefinição.");
+        toast("Enviamos um link para redefinir sua senha.");
+      }}><Ic k="file" />Redefinir senha</button>
       <h2>Diferenciais do Fornece Já</h2><div className="diff">
         {[["star", "Avaliação de fornecedores"], ["trophy", "Mais vendidos"], ["bell", "Promoções"], ["pin", "Busca por estado/cidade"], ["file", "Catálogo em PDF"], ["card", "Pagamento integrado"], ["truck", "Rastreio de entrega"]].map(([k, t]) => <span key={t}><Ic k={k!} />{t}</span>)}</div>
       <button className="btn ghost" onClick={() => supabase.auth.signOut()}>Sair</button></div><Nav a="perfil" /></>); break;
@@ -592,7 +795,7 @@ export function ForneceApp() {
       <button className="btn or" disabled={busy} onClick={salvarPerfil}>{busy ? "Salvando..." : "Salvar alterações"}</button>
     </div><Nav a="perfil" /></>); break;
     case "novo": body = (
-      <div className="scr"><Back to={() => go("painel")} /><h1>Novo produto</h1>
+      <div className="scr"><Back to={() => go("painel")}><HelpButton /></Back><h1>Novo produto</h1>
         <label>Nome do produto<input id="n1" /></label><label>Preço atacado (R$)<input id="n2" inputMode="decimal" /></label>
         <label>Quantidade mínima<input id="n3" inputMode="numeric" /></label>
         <label>Vendido por<select id="n6">{["unidade", "caixa", "fardo", "pacote", "peça", "galão"].map((c) => <option key={c}>{c}</option>)}</select></label>
@@ -607,10 +810,8 @@ export function ForneceApp() {
       {help && <div className="help-overlay" role="presentation" onClick={(e) => e.target === e.currentTarget && setHelp(false)}>
         <section className="help-dialog" role="dialog" aria-modal="true" aria-labelledby="help-title">
           <button className="ib help-close" aria-label="Fechar ajuda" onClick={() => setHelp(false)}>×</button>
-          <h1 id="help-title">Como começar</h1>
-          <p>Já tem uma conta? Toque em <b>Entrar</b> e use seu e-mail e senha.</p>
-          <p>É novo por aqui? Toque em <b>Criar conta</b> e escolha fornecedor para anunciar produtos ou comprador para encontrar produtos, conversar e solicitar pedidos.</p>
-          <p>No <b>Perfil</b>, adicione uma foto, descrição e nome. No sino, veja mensagens e atualizações de pedidos.</p>
+          <h1 id="help-title">{HELP_COPY[scr]?.title || "Ajuda"}</h1>
+          {(HELP_COPY[scr]?.paragraphs || ["Use os botões desta tela para acessar as opções disponíveis. Se precisar, volte ao perfil ou fale com a equipe de suporte."]).map((paragraph) => <p key={paragraph}>{paragraph}</p>)}
         </section></div>}
       {toastMsg && <div className="toast" role="status">{toastMsg}</div>}
     </div></div>

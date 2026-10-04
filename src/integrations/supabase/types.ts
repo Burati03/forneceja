@@ -130,28 +130,46 @@ export type Database = {
       }
       pedidos: {
         Row: {
+          comprador_aceitou: boolean
           criado_em: string
           empresario_id: string
           id: number
+          mercado_pago_pagamento_id: string | null
+          mercado_pago_preferencia_id: string | null
+          pagamento_status: string
+          preco_unitario: number
           produto_id: number
           qtd: number
           status: string
+          fornecedor_aceitou: boolean
         }
         Insert: {
+          comprador_aceitou?: boolean
           criado_em?: string
           empresario_id: string
           id?: number
+          mercado_pago_pagamento_id?: string | null
+          mercado_pago_preferencia_id?: string | null
+          pagamento_status?: string
+          preco_unitario: number
           produto_id: number
           qtd: number
           status?: string
+          fornecedor_aceitou?: boolean
         }
         Update: {
+          comprador_aceitou?: boolean
           criado_em?: string
           empresario_id?: string
           id?: number
+          mercado_pago_pagamento_id?: string | null
+          mercado_pago_preferencia_id?: string | null
+          pagamento_status?: string
+          preco_unitario?: number
           produto_id?: number
           qtd?: number
           status?: string
+          fornecedor_aceitou?: boolean
         }
         Relationships: [
           {
@@ -297,6 +315,8 @@ export type Database = {
     }
     Functions: {
       meu_tipo: { Args: never; Returns: string }
+      mercado_pago_conectado: { Args: never; Returns: boolean }
+      aceitar_negociacao: { Args: { _id: number }; Returns: undefined }
       mudar_status: {
         Args: { _id: number; _status: string }
         Returns: undefined
