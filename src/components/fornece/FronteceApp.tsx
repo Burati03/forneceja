@@ -169,6 +169,20 @@ export function ForneceApp() {
   }, []);
 
   const val = (id: string) => (document.getElementById(id) as HTMLInputElement | null)?.value || "";
+  const togglePw = (id: string, btn: HTMLButtonElement) => {
+    const el = document.getElementById(id) as HTMLInputElement | null;
+    if (!el) return;
+    const show = el.type === "password";
+    el.type = show ? "text" : "password";
+    btn.setAttribute("aria-pressed", String(show));
+    btn.textContent = show ? "Ocultar" : "Mostrar";
+  };
+  const Pw = ({ id, label, autoComplete, onEnter }: { id: string; label: string; autoComplete: string; onEnter?: () => void }) => (
+    <label>{label}<span className="pw-wrap">
+      <input id={id} type="password" autoComplete={autoComplete} defaultValue="" readOnly onFocus={(e) => e.currentTarget.removeAttribute("readonly")} onKeyDown={(e) => e.key === "Enter" && onEnter?.()} />
+      <button type="button" className="pw-eye" aria-pressed="false" onClick={(e) => togglePw(id, e.currentTarget)}>Mostrar</button>
+    </span></label>
+  );
 
   async function login() {
     setBusy(true);
@@ -186,6 +200,7 @@ export function ForneceApp() {
     const documento = val("c2").replace(/\D/g, "");
     if (!empresa || !email.includes("@")) return toast("Preencha seu nome ou nome da empresa e um e-mail válido.");
     if (senha.length < 6) return toast("A senha precisa ter ao menos 6 caracteres.");
+    if (senha !== val("c5b")) return toast("As senhas não conferem. Digite a mesma senha nos dois campos.");
     if (!f && documento.length !== (dt === "cpf" ? 11 : 14)) return toast(`Informe um ${dt === "cpf" ? "CPF" : "CNPJ"} válido.`);
     setBusy(true);
     const { data, error } = await supabase.auth.signUp({
@@ -383,7 +398,7 @@ export function ForneceApp() {
         <h1>Entrar</h1><p className="mute">Use o e-mail cadastrado na sua conta.</p>
         <p className="login-explain"><b>Comprador</b> é quem busca produtos para comprar, seja pessoa física ou jurídica, indústria, loja ou empresa. <b>Fornecedor</b> divulga produtos e atende pedidos.</p>
         <label>E-mail<input id="em" type="email" autoComplete="username" /></label>
-        <label>Senha<input id="sn" type="password" autoComplete="current-password" onKeyDown={(e) => e.key === "Enter" && login()} /></label>
+        <Pw id="sn" label="Senha" autoComplete="current-password" onEnter={login} />
         <button className="btn or" disabled={busy} onClick={login}>{busy ? "Entrando..." : "Entrar"}</button>
         <button className="linkbtn" onClick={() => setScr("esqueci")}>Esqueci minha senha</button>
         <button className="btn ghost" onClick={() => setScr("tipo")}>Criar conta</button></div>); break;
@@ -446,7 +461,8 @@ export function ForneceApp() {
           <label>Telefone<input id="c3" type="tel" /></label>
           {f && <label>Cidade / UF<input id="c7" placeholder="Campinas, SP" /></label>}
           <label>E-mail<input id="c4" type="email" autoComplete="off" defaultValue="" /></label>
-          <label>Senha (mín. 6 caracteres)<input id="c5" type="password" autoComplete="new-password" defaultValue="" readOnly onFocus={(e) => e.currentTarget.removeAttribute("readonly")} /></label>
+          <Pw id="c5" label="Senha (mín. 6 caracteres)" autoComplete="new-password" />
+          <Pw id="c5b" label="Confirmar senha" autoComplete="new-password" onEnter={cadastrar} />
           <label>{f ? "Categoria" : "Segmento"}<select id="c6">{(f ? CATS.slice(1) : ["Restaurante", "Mercado", "Loja de roupas", "Assistência técnica"]).map((o) => <option key={o}>{o}</option>)}</select></label>
           <label>Atividade<select id="c8" defaultValue=""><option value="">Selecione (opcional)</option><option>Indústria</option><option>Loja/empresa</option></select></label>
           <button className="btn or" disabled={busy} onClick={cadastrar}>{busy ? "Cadastrando..." : "Cadastrar"}</button></div>);
