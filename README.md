@@ -25,6 +25,10 @@ npm i
 npm run dev
 ```
 
+## Marketplace profiles and negotiations
+
+The marketplace keeps its existing supplier and buyer accounts, catalog, favorites, orders, chat, ratings, and Mercado Pago checkout. The additive migration `supabase/migrations/20261004192000_marketplace_completion.sql` adds product photos and archiving, supplier favorites, proposal/counterproposal actions, private notifications, profile business details, and stricter account-role and data-access policies. Apply the Supabase migrations in filename order before deploying this version; existing products and orders are preserved.
+
 ## Mercado Pago marketplace
 
 The checkout sends each payment to the Mercado Pago account connected by the supplier. Buyers are redirected to Mercado Pago Checkout Pro, where the payment methods available to that supplier and buyer (including cards, Pix, and boleto when enabled by Mercado Pago) are shown. The app only marks an order as paid after validating the signed Mercado Pago webhook and the payment against the order.

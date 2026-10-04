@@ -12,6 +12,7 @@ export const buscarComIA = createServerFn({ method: "POST" })
     const { data: prods, error } = await context.supabase
       .from("produtos")
       .select("id,nome,preco,unidade,qtd_min,categoria,descricao,p:profiles!produtos_fornecedor_id_fkey(empresa,cidade)")
+      .eq("ativo", true)
       .limit(300);
     if (error) return { ok: false, erro: "Não foi possível ler o catálogo." };
     const catalogo = (prods || []).map((p: any) =>
