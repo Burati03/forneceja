@@ -56,6 +56,7 @@ const HELP_COPY: Partial<Record<Scr, { title: string; paragraphs: string[] }>> =
 type Me = { id: string; tipo: "f" | "e"; empresa: string; email: string | null; descricao: string | null; avatar_path: string | null; atuacao: string | null; categoria: string | null; cidade: string | null };
 type Prod = { id: number; nome: string; preco: number; unidade: string; qtd_min: number; categoria: string | null; descricao: string | null; icone: string; views: number; fornecedor_id: string; fornecedor: string; cidade: string | null; fav?: boolean };
 type Negotiation = { id: number; qtd: number; preco_unitario: number; status: string; comprador_aceitou: boolean; fornecedor_aceitou: boolean; pagamento_status: string; produto: { id: number; nome: string; unidade: string; fornecedor_id: string } | null };
+type MercadoPagoStatus = "connected" | "disconnected" | "unavailable";
 type Scr = "splash" | "login" | "tipo" | "cad" | "feed" | "favs" | "meus" | "det" | "conversas" | "chat" | "painel" | "pedidos" | "perfil" | "editar" | "novo" | "esqueci" | "ia" | "forn" | "avaliar";
 
 const PSEL = "*, p:profiles!produtos_fornecedor_id_fkey(empresa,cidade)";
@@ -84,7 +85,8 @@ export function ForneceApp() {
     try { return typeof window !== "undefined" && localStorage.getItem(SAVED_LOGIN_KEY) !== "false" ? localStorage.getItem(SAVED_EMAIL_KEY) || "" : ""; }
     catch { return ""; }
   });
-  const [mercadoPagoConnected, setMercadoPagoConnected] = useState(false);
+  const [mercadoPagoStatus, setMercadoPagoStatus] = useState<MercadoPagoStatus>("disconnected");
+  const mercadoPagoConnected = mercadoPagoStatus === "connected";
   const [role, setRole] = useState<"f" | "e" | null>(null);
   const [docTipo, setDocTipo] = useState<"cpf" | "cnpj">("cpf");
   const [busy, setBusy] = useState(false);
@@ -140,12 +142,21 @@ export function ForneceApp() {
         data = { pf, avatarUrl: await signedPhoto(pf?.avatar_path), av: av || [], nota: media((av || []).map((a) => a.nota)), prods: (rows || []).map(mapP) };
       } else if (s === "perfil" && m) {
         const { data: pf, error } = await supabase.from("profiles").select("id,tipo,empresa,email,descricao,avatar_path,atuacao,categoria,cidade").eq("id", m.id).single(); err(error);
+        if (!pf) throw new Error("Não foi possível carregar seu perfil.");
         setMe(pf as Me);
         setAvatarUrl(await signedPhoto(pf?.avatar_path));
-        const { data: connected, error: connectionError } = await supabase.rpc("mercado_pago_conectado");
-        if (connectionError) throw new Error("Não foi possível verificar sua conexão com o Mercado Pago.");
-        setMercadoPagoConnected(connected);
         data = pf;
+        if (pf.tipo === "f") {
+          const { data: connected, error: connectionError } = await supabase.rpc("mercado_pago_conectado");
+          if (connectionError) {
+            console.error("[profile] Could not check Mercado Pago connection", connectionError);
+            setMercadoPagoStatus("unavailable");
+          } else {
+            setMercadoPagoStatus(connected ? "connected" : "disconnected");
+          }
+        } else {
+          setMercadoPagoStatus("disconnected");
+        }
       } else if (s === "conversas" && m) {
         const { data: msgs, error } = await supabase.from("mensagens").select("de_id,para_id,texto,id").order("id", { ascending: false }); err(error);
         const seen = new Map<string, string>();
@@ -770,7 +781,8 @@ export function ForneceApp() {
         <button className="menu" onClick={() => go("pedidos")}><Ic k="receipt" />Pedidos recebidos</button>
         <button className="menu" onClick={() => go("conversas")}><Ic k="msg" />Conversas</button>
         <button className="menu" onClick={() => go("forn", me.id)}><Ic k="star" />Minhas avaliações</button>
-        <button className="menu" disabled={busy || mercadoPagoConnected} onClick={conectarMercadoPago}><Ic k="card" />{mercadoPagoConnected ? "Mercado Pago conectado" : "Conectar Mercado Pago para receber"}</button>
+        <button className="menu" disabled={busy || mercadoPagoConnected || mercadoPagoStatus === "unavailable"} onClick={conectarMercadoPago}><Ic k="card" />{mercadoPagoConnected ? "Mercado Pago conectado" : mercadoPagoStatus === "unavailable" ? "Status Mercado Pago indisponível" : "Conectar Mercado Pago para receber"}</button>
+        {mercadoPagoStatus === "unavailable" && <p className="integration-notice" role="status">Seu perfil está disponível, mas o status do Mercado Pago não pôde ser verificado. Aplique a migração de pagamentos mais recente no Supabase para habilitar essa consulta.</p>}
       </> : <>
         <button className="menu" onClick={() => go("pedidos")}><Ic k="receipt" />Meus pedidos e pagamentos</button>
         <button className="menu" onClick={() => go("favs")}><Ic k="heart" />Produtos favoritos</button>
