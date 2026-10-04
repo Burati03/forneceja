@@ -377,10 +377,11 @@ export function ForneceApp() {
         <img src={logoEmp.url} alt="Fornece Já — fornecedores que impulsionam seu negócio" />
         <button className="btn or" onClick={() => setScr("login")}>Entrar</button>
         <button className="btn ghost" onClick={() => { setRole(null); setScr("tipo"); }}>Criar conta</button>
-        <p className="mute" style={{ textAlign: "center", marginTop: 18, color: "#fffc" }}>Fornecedor ou empresário</p></div>); break;
+        <p className="mute" style={{ textAlign: "center", marginTop: 18, color: "#fffc" }}>Fornecedor ou comprador</p></div>); break;
     case "login": body = (
       <div className="scr"><Back to={() => setScr("splash")} /><img className="lg" src={logoCor.url} alt="Fornece Já" />
         <h1>Entrar</h1><p className="mute">Use o e-mail cadastrado na sua conta.</p>
+        <p className="login-explain"><b>Comprador</b> é quem busca produtos para comprar, seja pessoa física ou jurídica, indústria, loja ou empresa. <b>Fornecedor</b> divulga produtos e atende pedidos.</p>
         <label>E-mail<input id="em" type="email" autoComplete="username" /></label>
         <label>Senha<input id="sn" type="password" autoComplete="current-password" onKeyDown={(e) => e.key === "Enter" && login()} /></label>
         <button className="btn or" disabled={busy} onClick={login}>{busy ? "Entrando..." : "Entrar"}</button>
@@ -402,14 +403,16 @@ export function ForneceApp() {
       </div><Nav a="feed" /></>); break;
     case "forn": {
       const own = me?.id === d.pf.id;
-      body = (<><div className="scr"><Back to={() => (own ? setScr("perfil") : go("feed"))} />
-        <h1>{d.pf.empresa}</h1><p className="mute">{[d.pf.categoria, d.pf.cidade].filter(Boolean).join(" · ")}</p>
+      body = (<><div className="scr"><Back to={() => (own ? go("perfil") : go("feed"))}><HelpButton /></Back>
+        <div className="profile-summary"><Avatar url={d.avatarUrl} name={d.pf.empresa} /><div><h1>{d.pf.empresa}</h1><p className="mute">{[d.pf.atuacao, d.pf.categoria, d.pf.cidade].filter(Boolean).join(" · ")}</p></div></div>
+        {d.pf.descricao && <p className="profile-description">{d.pf.descricao}</p>}
+        {own && <button className="menu" onClick={editarPerfil}><Ic k="user" />Editar perfil</button>}
         <div className="rating-box"><b>{d.av.length ? d.nota.toFixed(1) : "—"}</b><div><Stars n={d.nota} size={20} />
           <div className="mute">{d.av.length ? `${d.av.length} avaliaç${d.av.length === 1 ? "ão" : "ões"}` : "Ainda sem avaliações"}</div></div></div>
         <h2>Comentários</h2>
         {d.av.length ? d.av.map((a: any) => (
           <div key={a.id} className="pc" style={{ display: "block" }}><Stars n={a.nota} />
-            <div className="nm" style={{ fontSize: 14, marginTop: 4 }}>{a.autor?.empresa ?? "Empresário"}</div>
+            <div className="nm" style={{ fontSize: 14, marginTop: 4 }}>{a.autor?.empresa ?? "Comprador"}</div>
             {a.comentario && <p style={{ marginTop: 4 }}>{a.comentario}</p>}
             <div className="mute" style={{ fontSize: 12, marginTop: 4 }}>{new Date(a.criado_em).toLocaleDateString("pt-BR")}</div></div>
         )) : <p className="mute">Nenhum comentário ainda.</p>}
@@ -429,13 +432,13 @@ export function ForneceApp() {
     case "tipo": body = (
       <div className="scr"><Back to={() => setScr("splash")} /><h1>Criar conta</h1><p className="mute">Selecione o tipo de conta</p>
         <button className={"opt " + (role === "f" ? "sel" : "")} onClick={() => setRole("f")}><Ic k="store" /><span><b>Sou Fornecedor</b><span className="mute">Quero divulgar meus produtos</span></span></button>
-        <button className={"opt " + (role === "e" ? "sel" : "")} onClick={() => { setRole("e"); setDocTipo("cpf"); }}><Ic k="briefcase" /><span><b>Sou Empresário</b><span className="mute">Quero comprar produtos</span></span></button>
+        <button className={"opt " + (role === "e" ? "sel" : "")} onClick={() => { setRole("e"); setDocTipo("cpf"); }}><Ic k="briefcase" /><span><b>Sou Comprador</b><span className="mute">Pessoa física ou jurídica que busca produtos para comprar</span></span></button>
         <button className="btn or" onClick={() => (role ? setScr("cad") : toast("Escolha um tipo de conta"))}>Continuar</button></div>); break;
     case "cad": {
       const f = role === "f", pf = !f && docTipo === "cpf";
       body = (
-        <div className="scr"><Back to={() => setScr("tipo")} /><h1>Cadastro {f ? "Fornecedor" : "Empresário"}</h1>
-          {!f && <div className="person-type" role="group" aria-label="Tipo de cadastro">
+        <div className="scr"><Back to={() => setScr("tipo")} /><h1>Cadastro {f ? "Fornecedor" : "Comprador"}</h1>
+          <div className="person-type" role="group" aria-label="Tipo de pessoa">
             <button className={"chip " + (pf ? "on" : "")} aria-pressed={pf} onClick={() => setDocTipo("cpf")}>Pessoa física</button>
             <button className={"chip " + (!pf ? "on" : "")} aria-pressed={!pf} onClick={() => setDocTipo("cnpj")}>Pessoa jurídica</button></div>}
           <label>{pf ? "Nome completo" : "Nome da empresa"}<input id="c1" /></label>
@@ -445,11 +448,12 @@ export function ForneceApp() {
           <label>E-mail<input id="c4" type="email" autoComplete="off" defaultValue="" /></label>
           <label>Senha (mín. 6 caracteres)<input id="c5" type="password" autoComplete="new-password" defaultValue="" readOnly onFocus={(e) => e.currentTarget.removeAttribute("readonly")} /></label>
           <label>{f ? "Categoria" : "Segmento"}<select id="c6">{(f ? CATS.slice(1) : ["Restaurante", "Mercado", "Loja de roupas", "Assistência técnica"]).map((o) => <option key={o}>{o}</option>)}</select></label>
+          <label>Atividade<select id="c8" defaultValue=""><option value="">Selecione (opcional)</option><option>Indústria</option><option>Loja/empresa</option></select></label>
           <button className="btn or" disabled={busy} onClick={cadastrar}>{busy ? "Cadastrando..." : "Cadastrar"}</button></div>);
       break;
     }
     case "feed": body = (<>
-      <div className="hd"><img src={logoBranco.url} alt="Fornece Já" /><Bell /></div>
+      <div className="hd"><img src={logoBranco.url} alt="Fornece Já" /><div className="header-actions"><HelpButton /><Bell /></div></div>
       <div className="scr"><div className="top"><input style={{ margin: 0 }} placeholder="Buscar produto, fornecedor ou cidade" value={q}
         onChange={(e) => { const v = e.target.value; setQ(v); clearTimeout(searchT.current); searchT.current = setTimeout(() => load("feed", undefined, { q: v }), 250); }} /></div>
         <div className="chips">{CATS.map((c) => <button key={c} className={"chip " + (cat === c ? "on" : "")} onClick={() => { setCat(c); load("feed", undefined, { cat: c }); }}>{c}</button>)}</div>
@@ -457,7 +461,7 @@ export function ForneceApp() {
         <h2>Destaques para você</h2>
         {d?.length ? d.map((p: Prod) => <Card key={p.id} p={p} />) : <p className="mute">Nada encontrado. Tente outro termo ou categoria.</p>}
       </div><Nav a="feed" /></>); break;
-    case "favs": body = (<><div className="scr"><h1>Favoritos</h1>
+    case "favs": body = (<><div className="scr"><Title>Favoritos</Title>
       {d?.length ? d.map((p: Prod) => <Card key={p.id} p={p} />) : <p className="mute" style={{ marginTop: 12 }}>Toque no coração nos detalhes de um produto para salvá-lo aqui.</p>}
     </div><Nav a="favs" /></>); break;
     case "det": {
@@ -481,7 +485,7 @@ export function ForneceApp() {
         </div>);
       break;
     }
-    case "conversas": body = (<><div className="scr"><h1>Mensagens</h1>
+    case "conversas": body = (<><div className="scr"><Title>Mensagens</Title>
       {d?.length ? d.map((c: any) => (
         <button key={c.id} className="menu" style={{ display: "block", textAlign: "left" }} onClick={() => go("chat", c.id)}><b>{c.empresa}</b><div className="mute">{c.texto}</div></button>
       )) : <p className="mute" style={{ marginTop: 12 }}>Nenhuma conversa ainda. Abra um produto e toque em Conversar.</p>}
@@ -495,7 +499,7 @@ export function ForneceApp() {
       <div className="send"><input id="mi" placeholder="Digite sua mensagem..." onKeyDown={(e) => e.key === "Enter" && snd()} />
         <button aria-label="Enviar" onClick={snd}><Ic k="send" /></button></div></>); break;
     case "painel": body = (<>
-      <div className="hd"><img src={logoBranco.url} alt="Fornece Já" /><Bell /></div>
+      <div className="hd"><img src={logoBranco.url} alt="Fornece Já" /><div className="header-actions"><HelpButton /><Bell /></div></div>
       <div className="scr"><h1>Olá, {me?.empresa}!</h1><p className="mute">Seu painel de hoje</p>
         <div className="grid" style={{ marginTop: 12 }}>
           <div className="kpi"><b>{d.produtos}</b>Produtos ativos</div><div className="kpi"><b>{d.views}</b>Visualizações</div>
@@ -505,12 +509,12 @@ export function ForneceApp() {
         <button className="menu" onClick={() => go("pedidos")}><Ic k="receipt" />Pedidos recebidos</button>
         <button className="menu" onClick={() => setScr("perfil")}><Ic k="user" />Meu perfil</button>
       </div><Nav a="painel" /></>); break;
-    case "meus": body = (<><div className="scr"><h1>Meus produtos</h1>
+    case "meus": body = (<><div className="scr"><Title>Meus produtos</Title>
       {d?.length ? d.map((p: Prod) => <Card key={p.id} p={p} />) : <p className="mute" style={{ marginTop: 12 }}>Você ainda não publicou produtos.</p>}
       <button className="btn or" onClick={() => setScr("novo")}>Adicionar produto</button></div><Nav a="meus" /></>); break;
     case "pedidos": {
       const f = me?.tipo === "f";
-      body = (<><div className="scr"><h1>{f ? "Pedidos recebidos" : "Meus pedidos"}</h1>
+      body = (<><div className="scr"><Title>{f ? "Pedidos recebidos" : "Meus pedidos"}</Title>
         {d?.length ? d.map((o: any) => (
           <div key={o.id} className="pc" style={{ display: "block" }}>
             <div className="nm">{f ? o.cliente : o.nome}</div><div className="mute">{o.qtd} {pl(o.qtd, o.unidade)} de {o.nome}</div>
@@ -527,11 +531,24 @@ export function ForneceApp() {
       </div><Nav a="pedidos" /></>);
       break;
     }
-    case "perfil": body = (<><div className="scr"><h1>{me?.empresa}</h1><p className="mute">{me?.email} · {me?.tipo === "f" ? "Fornecedor" : "Empresário"}</p>
+    case "perfil": body = (<><div className="scr"><div className="screen-title"><span /><HelpButton /></div>
+      <div className="profile-summary"><Avatar url={avatarUrl} name={me?.empresa || "Perfil"} /><div><h1>{me?.empresa}</h1><p className="mute">{me?.tipo === "f" ? "Fornecedor" : "Comprador"}{me?.atuacao ? ` · ${me.atuacao}` : ""}</p></div></div>
+      <p className="mute">{me?.email}{me?.cidade ? ` · ${me.cidade}` : ""}</p>
+      {me?.descricao && <p className="profile-description">{me.descricao}</p>}
+      <button className="menu" onClick={editarPerfil}><Ic k="user" />Editar perfil</button>
       {me?.tipo === "f" && <button className="menu" onClick={() => go("forn", me.id)}><Ic k="star" />Minhas avaliações</button>}
       <h2>Diferenciais do Fornece Já</h2><div className="diff">
         {[["star", "Avaliação de fornecedores"], ["trophy", "Mais vendidos"], ["bell", "Promoções"], ["pin", "Busca por estado/cidade"], ["file", "Catálogo em PDF"], ["card", "Pagamento integrado"], ["truck", "Rastreio de entrega"]].map(([k, t]) => <span key={t}><Ic k={k!} />{t}</span>)}</div>
       <button className="btn ghost" onClick={() => supabase.auth.signOut()}>Sair</button></div><Nav a="perfil" /></>); break;
+    case "editar": body = (<><div className="scr"><Back to={() => go("perfil")} /><h1>Editar perfil</h1>
+      <label className="photo-picker"><Avatar url={fotoPreview || avatarUrl} name={form.empresa || "Perfil"} /><span><Ic k="camera" />{foto ? "Trocar foto" : "Adicionar foto"}</span><input type="file" accept="image/jpeg,image/png,image/webp" onChange={(e) => escolherFoto(e.target.files?.[0])} /></label>
+      <p className="mute photo-hint">JPG, PNG ou WebP · até 2 MB</p>
+      <label>Nome {me?.tipo === "f" ? "da empresa ou loja" : "ou nome da empresa/loja"}<input value={form.empresa} maxLength={120} onChange={(e) => setForm((v) => ({ ...v, empresa: e.target.value }))} /></label>
+      <label>Descrição<textarea rows={4} maxLength={1000} value={form.descricao} placeholder="Conte sobre você ou seu negócio" onChange={(e) => setForm((v) => ({ ...v, descricao: e.target.value }))} /></label>
+      <label>Cidade / UF<input value={form.cidade} maxLength={120} placeholder="Cidade, UF" onChange={(e) => setForm((v) => ({ ...v, cidade: e.target.value }))} /></label>
+      <label>Atividade<select value={form.atuacao} onChange={(e) => setForm((v) => ({ ...v, atuacao: e.target.value }))}><option value="">Não informar</option><option>Indústria</option><option>Loja/empresa</option></select></label>
+      <button className="btn or" disabled={busy} onClick={salvarPerfil}>{busy ? "Salvando..." : "Salvar alterações"}</button>
+    </div><Nav a="perfil" /></>); break;
     case "novo": body = (
       <div className="scr"><Back to={() => go("painel")} /><h1>Novo produto</h1>
         <label>Nome do produto<input id="n1" /></label><label>Preço atacado (R$)<input id="n2" inputMode="decimal" /></label>
@@ -550,7 +567,8 @@ export function ForneceApp() {
           <button className="ib help-close" aria-label="Fechar ajuda" onClick={() => setHelp(false)}>×</button>
           <h1 id="help-title">Como começar</h1>
           <p>Já tem uma conta? Toque em <b>Entrar</b> e use seu e-mail e senha.</p>
-          <p>É novo por aqui? Toque em <b>Criar conta</b> e escolha se você é fornecedor ou empresário.</p>
+          <p>É novo por aqui? Toque em <b>Criar conta</b> e escolha fornecedor para anunciar produtos ou comprador para encontrar produtos, conversar e solicitar pedidos.</p>
+          <p>No <b>Perfil</b>, adicione uma foto, descrição e nome. No sino, veja mensagens e atualizações de pedidos.</p>
         </section></div>}
       {toastMsg && <div className="toast" role="status">{toastMsg}</div>}
     </div></div>
