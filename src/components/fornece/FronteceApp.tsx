@@ -18,6 +18,8 @@ const ICONS: Record<string, string> = {
   bottle: "M10 3h4v3l2 3v11a1 1 0 0 1-1 1H9a1 1 0 0 1-1-1V9l2-3zM8 13h8", shirt: "M9 3l-6 3 2 5 3-1v11h8V10l3 1 2-5-6-3a3 3 0 0 1-6 0z", plug: "M9 3v5M15 3v5M7 8h10v4a5 5 0 0 1-10 0zM12 17v4",
   bulb: "M9 18h6M10 21h4M12 3a6 6 0 0 0-4 10.5c.8.8 1 1.5 1 2.5h6c0-1 .2-1.7 1-2.5A6 6 0 0 0 12 3z", battery: "M3 8h16v8H3zM21 11v2M6 11v2M9 11v2",
   can: "M6 6c0-1.5 2.7-3 6-3s6 1.5 6 3v12c0 1.5-2.7 3-6 3s-6-1.5-6-3zM6 6c0 1.5 2.7 3 6 3s6-1.5 6-3M6 12c0 1.5 2.7 3 6 3s6-1.5 6-3", bag: "M5 8h14l-1 13H6zM9 8V6a3 3 0 0 1 6 0v2",
+  help: "M9 9a3 3 0 1 1 5 2c-1.5 1-2 1.5-2 3M12 17h.01M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20",
+  camera: "M3 7h4l2-3h6l2 3h4v13H3zM12 10a4 4 0 1 0 0 8 4 4 0 0 0 0-8z",
 };
 const Ic = ({ k, f }: { k: string; f?: boolean }) => (
   <svg className={"i" + (f ? " f" : "")} viewBox="0 0 24 24" aria-hidden="true"><path d={ICONS[k] || ICONS["box"]} /></svg>
@@ -28,9 +30,9 @@ const STs = ["Em negociação", "Aguardando envio", "Enviado", "Recusado"];
 const CATS = ["Todos", "Alimentos", "Roupas", "Limpeza", "Eletrônicos"];
 const brl = (n: number) => "R$ " + Number(n).toFixed(2).replace(".", ",");
 
-type Me = { id: string; tipo: "f" | "e"; empresa: string; email: string | null };
+type Me = { id: string; tipo: "f" | "e"; empresa: string; email: string | null; descricao: string | null; avatar_path: string | null; atuacao: string | null; categoria: string | null; cidade: string | null };
 type Prod = { id: number; nome: string; preco: number; unidade: string; qtd_min: number; categoria: string | null; descricao: string | null; icone: string; views: number; fornecedor_id: string; fornecedor: string; cidade: string | null; fav?: boolean };
-type Scr = "splash" | "login" | "tipo" | "cad" | "feed" | "favs" | "meus" | "det" | "conversas" | "chat" | "painel" | "pedidos" | "perfil" | "novo" | "esqueci" | "ia" | "forn" | "avaliar";
+type Scr = "splash" | "login" | "tipo" | "cad" | "feed" | "favs" | "meus" | "det" | "conversas" | "chat" | "painel" | "pedidos" | "perfil" | "editar" | "novo" | "esqueci" | "ia" | "forn" | "avaliar";
 
 const PSEL = "*, p:profiles!produtos_fornecedor_id_fkey(empresa,cidade)";
 const mapP = (r: any): Prod => ({ ...r, preco: Number(r.preco), fornecedor: r.p?.empresa ?? "", cidade: r.p?.cidade ?? null });
@@ -54,11 +56,20 @@ export function ForneceApp() {
   const [docTipo, setDocTipo] = useState<"cpf" | "cnpj">("cpf");
   const [busy, setBusy] = useState(false);
   const [notif, setNotif] = useState<{ k: string; t: string; ic: string; tit: string; sub: string; act: () => void }[] | null>(null);
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [foto, setFoto] = useState<File | null>(null);
+  const [fotoPreview, setFotoPreview] = useState<string | null>(null);
+  const [form, setForm] = useState({ empresa: "", descricao: "", cidade: "", atuacao: "" });
   const fresh = useRef(0);
   const meRef = useRef<Me | null>(null);
   meRef.current = me;
 
   const toast = (t: string) => { setToast(t); setTimeout(() => setToast(""), 2400); };
+  const signedPhoto = async (path: string | null | undefined) => {
+    if (!path) return null;
+    const { data } = await supabase.storage.from("fotos-perfil").createSignedUrl(path, 3600);
+    return data?.signedUrl ?? null;
+  };
 
   const load = useCallback(async (s: Scr, arg?: any, opts?: { cat?: string; q?: string }) => {
     const m = meRef.current;
@@ -89,11 +100,16 @@ export function ForneceApp() {
         const notas = (av || []).map((a) => a.nota);
         data = { ...mapP(r), fav: fs.has(arg), nota: media(notas), nAval: notas.length };
       } else if (s === "forn") {
-        const { data: pf, error } = await supabase.from("profiles").select("id,empresa,categoria,cidade").eq("id", arg).single(); err(error);
+        const { data: pf, error } = await supabase.from("profiles").select("id,empresa,categoria,cidade,descricao,avatar_path,atuacao").eq("id", arg).single(); err(error);
         const { data: av } = await supabase.from("avaliacoes")
           .select("id,nota,comentario,criado_em,autor:profiles!avaliacoes_empresario_id_fkey(empresa)").eq("fornecedor_id", arg).order("id", { ascending: false });
         const { data: rows } = await supabase.from("produtos").select(PSEL).eq("fornecedor_id", arg).order("id", { ascending: false });
-        data = { pf, av: av || [], nota: media((av || []).map((a) => a.nota)), prods: (rows || []).map(mapP) };
+        data = { pf, avatarUrl: await signedPhoto(pf.avatar_path), av: av || [], nota: media((av || []).map((a) => a.nota)), prods: (rows || []).map(mapP) };
+      } else if (s === "perfil" && m) {
+        const { data: pf, error } = await supabase.from("profiles").select("id,tipo,empresa,email,descricao,avatar_path,atuacao,categoria,cidade").eq("id", m.id).single(); err(error);
+        setMe(pf as Me);
+        setAvatarUrl(await signedPhoto(pf.avatar_path));
+        data = pf;
       } else if (s === "conversas" && m) {
         const { data: msgs, error } = await supabase.from("mensagens").select("de_id,para_id,texto,id").order("id", { ascending: false }); err(error);
         const seen = new Map<string, string>();
@@ -130,11 +146,11 @@ export function ForneceApp() {
   const loadMe = useCallback(async (): Promise<Me | null> => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return null;
-    let { data: p } = await supabase.from("profiles").select("id,tipo,empresa,email").eq("id", user.id).maybeSingle();
+    let { data: p } = await supabase.from("profiles").select("id,tipo,empresa,email,descricao,avatar_path,atuacao,categoria,cidade").eq("id", user.id).maybeSingle();
     if (!p) {
       const md: any = user.user_metadata || {};
       if (!md.tipo) return null;
-      const ins = { id: user.id, tipo: md.tipo, empresa: md.empresa || user.email || "Minha empresa", email: user.email ?? null, categoria: md.categoria || null, cidade: md.cidade || null };
+      const ins = { id: user.id, tipo: md.tipo, empresa: md.empresa || user.email || "Minha empresa", email: user.email ?? null, categoria: md.categoria || null, cidade: md.cidade || null, atuacao: md.atuacao || null, descricao: null, avatar_path: null };
       const { error } = await supabase.from("profiles").insert(ins);
       if (error) return null;
       await supabase.from("profiles_private").insert({ id: user.id, documento: md.documento || null, documento_tipo: md.documento_tipo || "cnpj", telefone: md.telefone || null });
@@ -174,7 +190,7 @@ export function ForneceApp() {
     setBusy(true);
     const { data, error } = await supabase.auth.signUp({
       email, password: senha,
-      options: { emailRedirectTo: window.location.origin, data: { tipo: role, empresa, documento, documento_tipo: dt, telefone: val("c3"), categoria: val("c6"), cidade: f ? val("c7") : null } },
+      options: { emailRedirectTo: window.location.origin, data: { tipo: role, empresa, documento, documento_tipo: dt, telefone: val("c3"), categoria: val("c6"), cidade: f ? val("c7") : null, atuacao: val("c8") || null } },
     });
     setBusy(false);
     if (error) return toast(error.message.includes("registered") ? "Este e-mail já está cadastrado." : error.message);
@@ -263,9 +279,54 @@ export function ForneceApp() {
     toast("Obrigado pela avaliação!"); go("pedidos");
   }
 
+  const editarPerfil = () => {
+    if (!me) return;
+    setForm({ empresa: me.empresa, descricao: me.descricao || "", cidade: me.cidade || "", atuacao: me.atuacao || "" });
+    setFoto(null); setFotoPreview(null); setScr("editar");
+  };
+  async function salvarPerfil() {
+    if (!me || busy) return;
+    const nome = form.empresa.trim();
+    if (!nome) return toast("Informe o nome da empresa, loja ou seu nome.");
+    if (form.descricao.trim().length > 1000) return toast("A descrição pode ter até 1000 caracteres.");
+    setBusy(true);
+    let path = me.avatar_path;
+    let novoPath: string | null = null;
+    try {
+      if (foto) {
+        const ext = foto.type === "image/png" ? "png" : foto.type === "image/webp" ? "webp" : "jpg";
+        novoPath = `${me.id}/${crypto.randomUUID()}.${ext}`;
+        const { error } = await supabase.storage.from("fotos-perfil").upload(novoPath, foto, { contentType: foto.type });
+        err(error); path = novoPath;
+      }
+      const { data: updated, error } = await supabase.from("profiles")
+        .update({ empresa: nome, descricao: form.descricao.trim() || null, cidade: form.cidade.trim() || null, atuacao: form.atuacao || null, avatar_path: path })
+        .eq("id", me.id).select("id,tipo,empresa,email,descricao,avatar_path,atuacao,categoria,cidade").single();
+      err(error);
+      if (novoPath && me.avatar_path) await supabase.storage.from("fotos-perfil").remove([me.avatar_path]);
+      setMe(updated as Me); setFoto(null); setFotoPreview(null);
+      await load("perfil"); toast("Perfil atualizado!");
+    } catch (e: any) {
+      if (novoPath) await supabase.storage.from("fotos-perfil").remove([novoPath]);
+      toast(e.message || "Não foi possível salvar o perfil.");
+    } finally { setBusy(false); }
+  }
+  const escolherFoto = (file?: File) => {
+    if (!file) return;
+    if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) return toast("Escolha uma imagem JPG, PNG ou WebP.");
+    if (file.size > 2 * 1024 * 1024) return toast("A foto deve ter até 2 MB.");
+    setFoto(file);
+    const reader = new FileReader();
+    reader.onload = () => setFotoPreview(typeof reader.result === "string" ? reader.result : null);
+    reader.readAsDataURL(file);
+  };
+
   const Back = ({ to, children }: { to: () => void; children?: React.ReactNode }) => (
     <div className="top"><button className="ib" aria-label="Voltar" onClick={to}><Ic k="back" /></button>{children}</div>
   );
+  const HelpButton = () => <button className="ib" aria-label="Ajuda" title="Ajuda" onClick={() => setHelp(true)}><Ic k="help" /></button>;
+  const Title = ({ children }: { children: React.ReactNode }) => <div className="screen-title"><h1>{children}</h1><HelpButton /></div>;
+  const Avatar = ({ url, name }: { url?: string | null; name: string }) => <div className="profile-avatar">{url ? <img src={url} alt={`Foto de ${name}`} /> : <Ic k="user" />}</div>;
   const Nav = ({ a }: { a: string }) => {
     const f = me?.tipo === "f";
     const it: [Scr, string, string][] = f
