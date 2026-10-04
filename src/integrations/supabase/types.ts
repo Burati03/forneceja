@@ -222,9 +222,12 @@ export type Database = {
       }
       profiles: {
         Row: {
+          atuacao: string | null
+          avatar_path: string | null
           categoria: string | null
           cidade: string | null
           criado_em: string
+          descricao: string | null
           email: string | null
           empresa: string
           id: string
@@ -232,9 +235,12 @@ export type Database = {
           tipo: string
         }
         Insert: {
+          atuacao?: string | null
+          avatar_path?: string | null
           categoria?: string | null
           cidade?: string | null
           criado_em?: string
+          descricao?: string | null
           email?: string | null
           empresa: string
           id: string
@@ -242,9 +248,12 @@ export type Database = {
           tipo: string
         }
         Update: {
+          atuacao?: string | null
+          avatar_path?: string | null
           categoria?: string | null
           cidade?: string | null
           criado_em?: string
+          descricao?: string | null
           email?: string | null
           empresa?: string
           id?: string

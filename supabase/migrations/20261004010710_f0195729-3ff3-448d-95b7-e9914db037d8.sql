@@ -1,0 +1,5 @@
+ALTER TABLE public.profiles ADD COLUMN descricao text CHECK (char_length(descricao) <= 1000), ADD COLUMN avatar_path text, ADD COLUMN atuacao text CHECK (atuacao IS NULL OR atuacao IN ('Indústria', 'Loja/empresa'));
+CREATE POLICY "profile photos read" ON storage.objects FOR SELECT TO authenticated USING (bucket_id = 'fotos-perfil');
+CREATE POLICY "profile photos upload own" ON storage.objects FOR INSERT TO authenticated WITH CHECK (bucket_id = 'fotos-perfil' AND (storage.foldername(name))[1] = auth.uid()::text);
+CREATE POLICY "profile photos replace own" ON storage.objects FOR UPDATE TO authenticated USING (bucket_id = 'fotos-perfil' AND (storage.foldername(name))[1] = auth.uid()::text) WITH CHECK (bucket_id = 'fotos-perfil' AND (storage.foldername(name))[1] = auth.uid()::text);
+CREATE POLICY "profile photos delete own" ON storage.objects FOR DELETE TO authenticated USING (bucket_id = 'fotos-perfil' AND (storage.foldername(name))[1] = auth.uid()::text);
