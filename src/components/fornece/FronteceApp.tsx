@@ -943,14 +943,23 @@ export function ForneceApp() {
           cidade: form.cidade.trim() || null,
           atuacao: form.atuacao || null,
           avatar_path: path,
-          cnpj: me.tipo === "f" ? cnpj : null,
-          telefone_publico: me.tipo === "f" ? form.telefone.trim() || null : null,
-          endereco: me.tipo === "f" ? form.endereco.trim() || null : null,
         })
-        .eq("id", me.id).select("id,tipo,empresa,descricao,avatar_path,atuacao,categoria,cidade,cnpj,telefone_publico,endereco").single();
+        .eq("id", me.id).select("id,tipo,empresa,descricao,avatar_path,atuacao,categoria,cidade").single();
       err(error);
       if (!updated) throw new Error("Não foi possível carregar os dados atualizados do perfil.");
+
+      let extraProfileFieldsSaved = me.tipo !== "f";
       if (me.tipo === "f") {
+        const { error: extraFieldsError } = await supabase.from("profiles")
+          .update({
+            cnpj,
+            telefone_publico: form.telefone.trim() || null,
+            endereco: form.endereco.trim() || null,
+          })
+          .eq("id", me.id);
+        if (extraFieldsError && !isMissingColumnError(extraFieldsError)) throw new Error(extraFieldsError.message);
+        extraProfileFieldsSaved = !extraFieldsError;
+
         const { error: privateUpdateError } = await supabase.from("profiles_private")
           .upsert({ id: me.id, documento: cnpj, documento_tipo: "cnpj", telefone: form.telefone.trim() || null }, { onConflict: "id" });
         err(privateUpdateError);
@@ -964,10 +973,20 @@ export function ForneceApp() {
         err(emailUpdateError);
       }
       if (novoPath && me.avatar_path) await supabase.storage.from("fotos-perfil").remove([me.avatar_path]);
-      setMe({ ...updated, email: me.email, telefone: me.tipo === "f" ? updated.telefone_publico : form.telefone.trim() || null } as Me);
+      setMe({
+        ...updated,
+        email: me.email,
+        cnpj: me.tipo === "f" ? cnpj : null,
+        telefone: form.telefone.trim() || null,
+        endereco: me.tipo === "f" && extraProfileFieldsSaved ? form.endereco.trim() || null : null,
+      } as Me);
       setFoto(null); setFotoPreview(null);
       await load("perfil");
-      toast(email !== me.email ? "Perfil salvo. Confirme a alteração do e-mail pelo link enviado." : "Perfil atualizado!");
+      if (!extraProfileFieldsSaved) {
+        toast("Perfil salvo, mas CNPJ, telefone comercial e endereço precisam da migração mais recente do Supabase.");
+      } else {
+        toast(email !== me.email ? "Perfil salvo. Confirme a alteração do e-mail pelo link enviado." : "Perfil atualizado!");
+      }
     } catch (e: any) {
       if (novoPath) await supabase.storage.from("fotos-perfil").remove([novoPath]);
       toast(e.message || "Não foi possível salvar o perfil.");
