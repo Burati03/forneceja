@@ -911,6 +911,44 @@
 .negotiation-paid{margin-top:8px;color:#16723c;font-weight:700;font-size:13px}
 .menu:disabled{opacity:.65;cursor:default;transform:none}
 .integration-notice{margin-top:8px;padding:10px 12px;border-radius:var(--r);background:#fff4e5;color:#7a4700;font-size:13px;line-height:1.45}
+.cart-item{display:flex;gap:12px;margin-top:12px;padding:12px;border:1px solid var(--line);border-radius:var(--r);background:var(--card);animation:fade .25s both}
+.cart-product-icon{width:48px;height:48px;display:grid;place-items:center;flex:none;border-radius:var(--r);background:var(--tint);color:var(--navy)}
+.cart-product-info{flex:1;min-width:0}
+.cart-product-info>b,.cart-product-info>.mute{display:block;overflow-wrap:anywhere}
+.cart-product-info>.price{display:block;font-size:15px;margin-top:3px}
+.cart-quantity{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:10px;font-size:13px;color:var(--mute)}
+.cart-quantity-controls{display:flex;align-items:center;gap:5px}
+.cart-quantity-controls button{width:30px;height:30px;border:1px solid var(--line);border-radius:var(--r);background:var(--bg);color:var(--navy);font-size:18px;font-weight:700;cursor:pointer}
+.cart-quantity-controls button:disabled{opacity:.45;cursor:default}
+.cart-quantity-controls input{width:66px;height:32px;margin:0;padding:4px;text-align:center;font-weight:700}
+.cart-item-footer{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:10px;padding-top:8px;border-top:1px solid var(--line);font-size:14px}
+.cart-item-footer>b{color:var(--navy)}
+.cart-remove{border:0;background:none;color:#a13232;text-decoration:underline;font-weight:700;cursor:pointer;padding:5px}
+.cart-summary{margin-top:14px;padding:14px;border:1px solid var(--line);border-radius:var(--r);background:var(--card)}
+.cart-summary>div{display:flex;justify-content:space-between;gap:10px;font-size:18px}
+.cart-summary>div b{color:var(--or)}
+.cart-summary p{margin-top:8px;line-height:1.45}
+.cart-checkout{position:sticky;bottom:4px;box-shadow:0 4px 14px #051f4733}
+.cart-empty{display:flex;flex-direction:column;align-items:center;text-align:center;gap:10px;margin-top:48px;padding:20px}
+.cart-empty>.i{width:58px;height:58px;color:var(--or)}
+.cart-empty>b{font-size:19px;color:var(--navy)}
+.cart-empty p{max-width:260px}
+.purchase-summary{display:flex;flex-direction:column;gap:4px;margin:10px 0;padding:14px;background:var(--tint);border-radius:var(--r);animation:fade .25s both}
+.purchase-summary>b{color:var(--navy)}
+.purchase-date{margin-top:10px;color:var(--mute);font-size:12px}
+.purchase-timeline{list-style:none;padding:0;margin:14px 0 8px}
+.purchase-step{position:relative;display:grid;grid-template-columns:28px 1fr auto;gap:8px;align-items:center;min-height:42px;font-size:13px;color:var(--mute)}
+.purchase-step:not(:last-child)::after{content:"";position:absolute;left:12px;top:30px;bottom:-12px;width:2px;background:var(--line)}
+.purchase-step.done:not(:last-child)::after{background:#219653}
+.purchase-step-marker{z-index:1;display:grid;place-items:center;width:26px;height:26px;border:2px solid var(--line);border-radius:50%;background:var(--card);font-weight:800}
+.purchase-step.done{color:var(--ink)}
+.purchase-step.done .purchase-step-marker{border-color:#219653;background:#e5f5eb;color:#16723c}
+.purchase-step.current{color:var(--navy);font-weight:800}
+.purchase-step.current .purchase-step-marker{border-color:var(--or);background:#fff4e5}
+.purchase-step.failed{color:#a13232;font-weight:800}
+.purchase-step.failed .purchase-step-marker{border-color:#a13232;background:#fff0f0;color:#a13232}
+.purchase-step small{font-size:11px;font-weight:500;text-align:right}
+.purchase-tracking-note{margin-top:8px;padding:9px 10px;border-radius:var(--r);background:var(--bg);color:var(--mute);font-size:12px;line-height:1.45}
 @keyframes negotiation-accepted{0%{transform:scale(.96);opacity:.65}70%{transform:scale(1.02)}100%{transform:scale(1);opacity:1}}
 .forn-link{display:flex;flex-direction:column;gap:2px;background:none;border:0;padding:0;text-align:left;cursor:pointer;margin-top:4px;color:var(--ink)}
 .forn-rate{font-size:13px;font-weight:600;color:var(--mute)}

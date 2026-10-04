@@ -29,6 +29,8 @@ const pl = (n: number, u: string) => (+n === 1 ? u : PL[u] || u);
 const STs = ["Em negociação", "Aguardando pagamento", "Pago", "Aguardando envio", "Enviado", "Recusado"];
 const CATS = ["Todos", "Alimentos", "Bebidas", "Roupas", "Limpeza", "Eletrônicos", "Químicos", "Agropecuária", "Construção", "Embalagens", "Higiene", "Autopeças"];
 const brl = (n: number) => "R$ " + Number(n).toFixed(2).replace(".", ",");
+const subtotalCents = (unitPrice: number, quantity: number) => Math.round(unitPrice * 100) * quantity;
+const brlCents = (cents: number) => brl(cents / 100);
 const SAVED_LOGIN_KEY = "forneceja.saved-login";
 const SAVED_EMAIL_KEY = "forneceja.saved-email";
 const HELP_COPY: Partial<Record<Scr, { title: string; paragraphs: string[] }>> = {
@@ -43,7 +45,7 @@ const HELP_COPY: Partial<Record<Scr, { title: string; paragraphs: string[] }>> =
   editar: { title: "Editar perfil", paragraphs: ["Atualize o nome, descrição, cidade e atividade. A foto deve ser JPG, PNG ou WebP e ter até 2 MB.", "Toque em salvar para publicar as alterações no seu perfil."] },
   meus: { title: "Seus produtos", paragraphs: ["Veja os produtos publicados na sua conta de fornecedor.", "Use “Adicionar produto” para publicar um item com preço, unidade e quantidade mínima."] },
   painel: { title: "Painel do fornecedor", paragraphs: ["Acompanhe visualizações, pedidos, mensagens e avaliações.", "Para receber pagamentos pelo marketplace, conecte sua própria conta Mercado Pago no perfil."] },
-  det: { title: "Detalhes do produto", paragraphs: ["Confira preço, quantidade mínima, fornecedor e descrição antes de negociar.", "A solicitação cria um cartão de negociação no chat com o fornecedor."] },
+  det: { title: "Detalhes do produto", paragraphs: ["Confira preço, quantidade mínima, fornecedor e descrição antes de negociar.", "Adicione o produto ao carrinho para organizar vários itens ou envie uma solicitação direta; em ambos os casos, o pedido aparece na negociação com o fornecedor."] },
   ia: { title: "Busca inteligente", paragraphs: ["Descreva o que sua empresa precisa e a busca sugere produtos do catálogo.", "Revise os detalhes e negocie diretamente com o fornecedor."] },
   tipo: { title: "Tipo de conta", paragraphs: ["Escolha comprador para encontrar produtos e negociar compras.", "Escolha fornecedor para publicar produtos e receber pedidos."] },
   cad: { title: "Criar conta", paragraphs: ["Preencha os dados solicitados e use um e-mail válido para confirmar a conta.", "A senha deve ter pelo menos seis caracteres. Dados de documento são usados para identificar o tipo de conta."] },
@@ -51,13 +53,17 @@ const HELP_COPY: Partial<Record<Scr, { title: string; paragraphs: string[] }>> =
   novo: { title: "Publicar produto", paragraphs: ["Informe nome, preço, quantidade mínima, unidade e categoria.", "O produto será exibido no catálogo após a publicação."] },
   forn: { title: "Perfil do fornecedor", paragraphs: ["Confira a descrição, as avaliações e os produtos deste fornecedor.", "Use o chat para tirar dúvidas e enviar uma solicitação de negociação."] },
   avaliar: { title: "Avaliar pedido", paragraphs: ["Escolha uma nota de uma a cinco estrelas e, se quiser, descreva sua experiência.", "A avaliação fica associada ao pedido enviado."] },
+  carrinho: { title: "Carrinho de compras", paragraphs: ["Confira produtos, quantidades mínimas e totais antes de enviar.", "Enviar o carrinho cria solicitações de negociação; cada pedido só poderá ser pago após comprador e fornecedor aceitarem."] },
+  compras: { title: "Acompanhar compras", paragraphs: ["Acompanhe negociação, pagamento e envio de cada pedido nesta tela.", "O aplicativo mostra as atualizações registradas pelo fornecedor e pelo Mercado Pago. Ainda não há integração com rastreio de transportadoras."] },
 };
 
 type Me = { id: string; tipo: "f" | "e"; empresa: string; email: string | null; descricao: string | null; avatar_path: string | null; atuacao: string | null; categoria: string | null; cidade: string | null };
 type Prod = { id: number; nome: string; preco: number; unidade: string; qtd_min: number; categoria: string | null; descricao: string | null; icone: string; views: number; fornecedor_id: string; fornecedor: string; cidade: string | null; fav?: boolean };
+type CartItem = Pick<Prod, "id" | "nome" | "preco" | "unidade" | "qtd_min" | "icone" | "fornecedor_id" | "fornecedor" | "cidade"> & { quantidade: number };
 type Negotiation = { id: number; qtd: number; preco_unitario: number; status: string; comprador_aceitou: boolean; fornecedor_aceitou: boolean; pagamento_status: string; produto: { id: number; nome: string; unidade: string; fornecedor_id: string } | null };
+type Purchase = { id: number; qtd: number; status: string; criado_em: string; avaliado: boolean; fornecedor_id: string; nome: string; unidade: string; cliente: string; cliente_id: string; comprador_aceitou: boolean; fornecedor_aceitou: boolean; pagamento_status: string; preco_unitario: number };
 type MercadoPagoStatus = "connected" | "disconnected" | "unavailable";
-type Scr = "splash" | "login" | "tipo" | "cad" | "feed" | "favs" | "meus" | "det" | "conversas" | "chat" | "painel" | "pedidos" | "perfil" | "editar" | "novo" | "esqueci" | "ia" | "forn" | "avaliar";
+type Scr = "splash" | "login" | "tipo" | "cad" | "feed" | "favs" | "meus" | "det" | "conversas" | "chat" | "painel" | "pedidos" | "perfil" | "editar" | "novo" | "esqueci" | "ia" | "forn" | "avaliar" | "carrinho" | "compras";
 
 const PSEL = "*, p:profiles!produtos_fornecedor_id_fkey(empresa,cidade)";
 const mapP = (r: any): Prod => ({ ...r, preco: Number(r.preco), fornecedor: r.p?.empresa ?? "", cidade: r.p?.cidade ?? null });
@@ -71,6 +77,8 @@ const err = (e: any) => { if (e) throw new Error(e.message); };
 export function ForneceApp() {
   const [scr, setScr] = useState<Scr>("splash");
   const [me, setMe] = useState<Me | null>(null);
+  const [cart, setCart] = useState<CartItem[]>([]);
+  const [cartOwnerId, setCartOwnerId] = useState<string | null>(null);
   const [d, setD] = useState<any>(null);
   const [x, setX] = useState<any>(null);
   const [cat, setCat] = useState("Todos");
@@ -98,6 +106,48 @@ export function ForneceApp() {
   const fresh = useRef(0);
   const meRef = useRef<Me | null>(null);
   meRef.current = me;
+  const activeUserId = me?.id;
+
+  useEffect(() => {
+    if (!activeUserId) {
+      setCart([]);
+      setCartOwnerId(null);
+      return;
+    }
+
+    setCartOwnerId(null);
+    try {
+      const saved = localStorage.getItem(`forneceja.cart.${activeUserId}`);
+      const parsed: unknown = saved ? JSON.parse(saved) : [];
+      const validItems = Array.isArray(parsed) ? parsed.filter((item): item is CartItem =>
+        item && Number.isSafeInteger(item.id) && item.id > 0 &&
+        typeof item.nome === "string" && typeof item.unidade === "string" &&
+        Number.isFinite(item.preco) && item.preco > 0 &&
+        Number.isSafeInteger(item.qtd_min) && item.qtd_min > 0 &&
+        Number.isSafeInteger(item.quantidade) && item.quantidade >= item.qtd_min && item.quantidade <= 2_147_483_647 &&
+        Number.isSafeInteger(subtotalCents(item.preco, item.quantidade)) &&
+        typeof item.fornecedor_id === "string" && typeof item.fornecedor === "string" &&
+        typeof item.icone === "string" && (item.cidade == null || typeof item.cidade === "string")
+      ) : [];
+      setCart(validItems);
+    } catch (error) {
+      console.error("[cart] Could not restore this user's cart", error);
+      setCart([]);
+    }
+    setCartOwnerId(activeUserId);
+  }, [activeUserId]);
+
+  useEffect(() => {
+    if (!me || cartOwnerId !== me.id) return;
+    try {
+      const key = `forneceja.cart.${me.id}`;
+      if (cart.length) localStorage.setItem(key, JSON.stringify(cart));
+      else localStorage.removeItem(key);
+    } catch (error) {
+      console.error("[cart] Could not save this user's cart", error);
+      toast("Não foi possível salvar o carrinho neste dispositivo.");
+    }
+  }, [cart, cartOwnerId, me]);
 
   const toast = (t: string) => { setToast(t); setTimeout(() => setToast(""), 2400); };
   const signedPhoto = async (path: string | null | undefined) => {
@@ -210,12 +260,15 @@ export function ForneceApp() {
         const notas = (avs || []).map((a) => a.nota);
         data = { produtos: ps?.length || 0, views: (ps || []).reduce((a, p) => a + p.views, 0), mensagens: msgs || 0, pedidos: pds?.length || 0,
           receita, unidades, st, linhas, media: notas.length ? (notas.reduce((a, b) => a + b, 0) / notas.length).toFixed(1) : "—", nAval: notas.length };
-      } else if (s === "pedidos") {
-        const { data: rows, error } = await supabase.from("pedidos")
-          .select("id,qtd,status,empresario_id,comprador_aceitou,fornecedor_aceitou,pagamento_status,preco_unitario,produto:produtos(nome,unidade,fornecedor_id),cliente:profiles!pedidos_empresario_id_fkey(empresa)").order("id", { ascending: false }); err(error);
+      } else if (s === "pedidos" || s === "compras") {
+        let orderQuery = supabase.from("pedidos")
+          .select("id,qtd,status,criado_em,empresario_id,comprador_aceitou,fornecedor_aceitou,pagamento_status,preco_unitario,produto:produtos(nome,unidade,fornecedor_id),cliente:profiles!pedidos_empresario_id_fkey(empresa)")
+          .order("id", { ascending: false });
+        if (s === "compras" && m?.tipo === "e") orderQuery = orderQuery.eq("empresario_id", m.id);
+        const { data: rows, error } = await orderQuery; err(error);
         const { data: avs } = await supabase.from("avaliacoes").select("pedido_id");
         const aval = new Set((avs || []).map((a) => a.pedido_id));
-        data = (rows || []).map((o) => ({ avaliado: aval.has(o.id), fornecedor_id: o.produto?.fornecedor_id, id: o.id, qtd: o.qtd, status: o.status, comprador_aceitou: o.comprador_aceitou, fornecedor_aceitou: o.fornecedor_aceitou, pagamento_status: o.pagamento_status, preco_unitario: o.preco_unitario, nome: o.produto?.nome, unidade: o.produto?.unidade, cliente: o.cliente?.empresa, cliente_id: o.empresario_id }));
+        data = (rows || []).map((o) => ({ avaliado: aval.has(o.id), fornecedor_id: o.produto?.fornecedor_id, id: o.id, qtd: o.qtd, status: o.status, criado_em: o.criado_em, comprador_aceitou: o.comprador_aceitou, fornecedor_aceitou: o.fornecedor_aceitou, pagamento_status: o.pagamento_status, preco_unitario: o.preco_unitario, nome: o.produto?.nome, unidade: o.produto?.unidade, cliente: o.cliente?.empresa, cliente_id: o.empresario_id }));
       }
       if (id !== fresh.current) return;
       setD(data); setX(arg); setScr(s);
@@ -340,6 +393,141 @@ export function ForneceApp() {
     else await supabase.from("favoritos").insert({ user_id: me.id, produto_id: id });
     setD({ ...d, fav: !d.fav });
     toast(d.fav ? "Removido dos favoritos" : "Salvo nos favoritos");
+  }
+
+  function adicionarAoCarrinho(product: Prod) {
+    if (!me || me.tipo !== "e") return toast("O carrinho está disponível para contas compradoras.");
+    if (product.fornecedor_id === me.id) return toast("Você não pode comprar seu próprio produto.");
+    const quantidade = Number(val("qt"));
+    if (!Number.isSafeInteger(quantidade) || quantidade < product.qtd_min || quantidade > 2_147_483_647) {
+      return toast(`A quantidade mínima deste produto é ${product.qtd_min} ${pl(product.qtd_min, product.unidade)}.`);
+    }
+    if (!Number.isSafeInteger(subtotalCents(product.preco, quantidade))) {
+      return toast("O subtotal excede o limite permitido para um pedido.");
+    }
+    const item: CartItem = {
+      id: product.id,
+      nome: product.nome,
+      preco: product.preco,
+      unidade: product.unidade,
+      qtd_min: product.qtd_min,
+      icone: product.icone,
+      fornecedor_id: product.fornecedor_id,
+      fornecedor: product.fornecedor,
+      cidade: product.cidade,
+      quantidade,
+    };
+    const alreadyInCart = cartOwnerId === me.id ? cart.find((entry) => entry.id === item.id) : undefined;
+    if (alreadyInCart && alreadyInCart.quantidade + quantidade > 2_147_483_647) {
+      return toast("A quantidade total excede o limite permitido para um pedido.");
+    }
+    if (alreadyInCart && !Number.isSafeInteger(subtotalCents(alreadyInCart.preco, alreadyInCart.quantidade + quantidade))) {
+      return toast("O subtotal excede o limite permitido para um pedido.");
+    }
+    setCart((current) => {
+      const userCart = cartOwnerId === me.id ? current : [];
+      const existing = userCart.find((entry) => entry.id === item.id);
+      return existing
+        ? userCart.map((entry) => entry.id === item.id ? { ...entry, quantidade: entry.quantidade + quantidade } : entry)
+        : [...userCart, item];
+    });
+    setCartOwnerId(me.id);
+    toast(`${product.nome} adicionado ao carrinho.`);
+  }
+
+  function atualizarQuantidadeCarrinho(productId: number, value: string) {
+    const item = cart.find((entry) => entry.id === productId);
+    if (!item) return;
+    const quantity = Number(value);
+    if (!Number.isSafeInteger(quantity) || quantity > 2_147_483_647) {
+      toast("A quantidade máxima permitida foi excedida.");
+      return;
+    }
+    if (quantity < item.qtd_min) {
+      toast(`A quantidade mínima é ${item.qtd_min} ${pl(item.qtd_min, item.unidade)}.`);
+      return;
+    }
+    if (!Number.isSafeInteger(subtotalCents(item.preco, quantity))) {
+      toast("O subtotal excede o limite permitido para um pedido.");
+      return;
+    }
+    setCart((current) => current.map((entry) => entry.id === productId ? { ...entry, quantidade: quantity } : entry));
+  }
+
+  function removerDoCarrinho(productId: number) {
+    setCart((current) => current.filter((entry) => entry.id !== productId));
+    toast("Produto removido do carrinho.");
+  }
+
+  async function enviarCarrinho() {
+    if (!me || me.tipo !== "e" || !cart.length || busy) return;
+    setBusy(true);
+    try {
+      const { data: products, error: productsError } = await supabase.from("produtos")
+        .select("id,nome,preco,unidade,qtd_min,fornecedor_id")
+        .in("id", cart.map((item) => item.id));
+      if (productsError) throw new Error(productsError.message);
+
+      const available = new Map((products || []).map((product) => [product.id, product]));
+      const missing = cart.filter((item) => !available.has(item.id));
+      if (missing.length) {
+        const missingIds = new Set(missing.map((item) => item.id));
+        setCart((current) => current.filter((item) => !missingIds.has(item.id)));
+        toast(`${missing.map((item) => item.nome).join(", ")} não está mais disponível e foi removido do carrinho.`);
+        return;
+      }
+
+      const currentCart = cart.map((item) => {
+        const product = available.get(item.id)!;
+        return {
+          ...item,
+          nome: product.nome,
+          preco: Number(product.preco),
+          unidade: product.unidade,
+          qtd_min: product.qtd_min,
+          fornecedor_id: product.fornecedor_id,
+        };
+      });
+      const changed = currentCart.some((item, index) => {
+        const previousItem = cart[index];
+        return !previousItem ||
+          item.nome !== previousItem.nome ||
+          item.preco !== previousItem.preco ||
+          item.unidade !== previousItem.unidade ||
+          item.qtd_min !== previousItem.qtd_min ||
+          item.fornecedor_id !== previousItem.fornecedor_id;
+      });
+      if (changed) {
+        setCart(currentCart.map((item) => ({ ...item, quantidade: Math.max(item.quantidade, item.qtd_min) })));
+        toast("Preço ou quantidade mínima alterados. Confira o carrinho e envie novamente.");
+        return;
+      }
+      if (currentCart.some((item) => item.fornecedor_id === me.id || item.quantidade < item.qtd_min)) {
+        throw new Error("Revise os produtos e quantidades do carrinho antes de continuar.");
+      }
+      if (currentCart.some((item) => !Number.isSafeInteger(subtotalCents(item.preco, item.quantidade)))) {
+        throw new Error("O subtotal de um produto excede o limite permitido para pagamento.");
+      }
+      const cartTotalCents = currentCart.reduce((sum, item) => sum + subtotalCents(item.preco, item.quantidade), 0);
+      if (!Number.isSafeInteger(cartTotalCents)) throw new Error("O valor total do carrinho excede o limite permitido para pagamento.");
+
+      const { error } = await supabase.from("pedidos").insert(currentCart.map((item) => ({
+        produto_id: item.id,
+        empresario_id: me.id,
+        qtd: item.quantidade,
+        preco_unitario: item.preco,
+      })));
+      if (error) throw new Error(error.message);
+      const itemCount = currentCart.length;
+      setCart([]);
+      toast(`${itemCount} ${itemCount === 1 ? "pedido enviado" : "pedidos enviados"} para negociação.`);
+      go("pedidos");
+    } catch (error) {
+      console.error("[cart] Could not create purchase requests", error);
+      toast(error instanceof Error ? `Não foi possível enviar o carrinho: ${error.message}` : "Não foi possível enviar o carrinho.");
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function pedir(p: Prod) {
@@ -515,9 +703,10 @@ export function ForneceApp() {
   const Avatar = ({ url, name }: { url?: string | null; name: string }) => <div className="profile-avatar">{url ? <img src={url} alt={`Foto de ${name}`} /> : <Ic k="user" />}</div>;
   const Nav = ({ a }: { a: string }) => {
     const f = me?.tipo === "f";
+    const cartItemsCount = cartOwnerId === me?.id ? cart.length : 0;
     const it: [Scr, string, string][] = f
       ? [["painel", "home", "Início"], ["meus", "box", "Produtos"], ["conversas", "msg", "Mensagens"], ["pedidos", "receipt", "Pedidos"], ["perfil", "user", "Perfil"]]
-      : [["feed", "home", "Início"], ["conversas", "msg", "Mensagens"], ["favs", "heart", "Favoritos"], ["perfil", "user", "Perfil"]];
+      : [["feed", "home", "Início"], ["conversas", "msg", "Mensagens"], ["carrinho", "bag", `Carrinho${cartItemsCount ? ` (${cartItemsCount})` : ""}`], ["favs", "heart", "Favoritos"], ["perfil", "user", "Perfil"]];
     return <nav className="nav">{it.map((i) => (
       <button key={i[2]} className={i[0] === a ? "on" : ""} onClick={() => go(i[0])}><Ic k={i[1]} />{i[2]}</button>
     ))}</nav>;
@@ -677,8 +866,57 @@ export function ForneceApp() {
           {!mine && <>
             <button className="btn" onClick={() => go("chat", p.fornecedor_id)}><Ic k="msg" />Conversar</button>
             <label>Quantidade desejada ({pl(2, p.unidade)})<input id="qt" type="number" min={p.qtd_min} defaultValue={p.qtd_min} /></label>
+            <button className="btn or" onClick={() => adicionarAoCarrinho(p)}><Ic k="bag" />Adicionar ao carrinho</button>
             <button className="btn ghost" onClick={() => pedir(p)}><Ic k="receipt" />Solicitar orçamento</button></>}
         </div>);
+      break;
+    }
+    case "carrinho": {
+      const buyerCart = cartOwnerId === me?.id ? cart : [];
+      const total = buyerCart.reduce((sum, item) => sum + subtotalCents(item.preco, item.quantidade), 0);
+      body = (<>
+        <div className="scr">
+          <Title>Meu carrinho</Title>
+          {buyerCart.length ? <>
+            {buyerCart.map((item) => (
+              <article key={item.id} className="cart-item">
+                <div className="cart-product-icon"><Ic k={item.icone} /></div>
+                <div className="cart-product-info">
+                  <b>{item.nome}</b>
+                  <span className="mute">{item.fornecedor}{item.cidade ? ` · ${item.cidade}` : ""}</span>
+                  <span className="price">{brl(item.preco)} / {item.unidade}</span>
+                  <div className="cart-quantity">
+                    <span>Quantidade (mín. {item.qtd_min})</span>
+                    <div className="cart-quantity-controls">
+                      <button aria-label={`Diminuir quantidade de ${item.nome}`} disabled={item.quantidade <= item.qtd_min}
+                        onClick={() => atualizarQuantidadeCarrinho(item.id, String(item.quantidade - 1))}>−</button>
+                      <input aria-label={`Quantidade de ${item.nome}`} type="number" min={item.qtd_min} max={2_147_483_647}
+                        value={item.quantidade} onChange={(event) => atualizarQuantidadeCarrinho(item.id, event.target.value)} />
+                      <button aria-label={`Aumentar quantidade de ${item.nome}`} disabled={item.quantidade >= 2_147_483_647}
+                        onClick={() => atualizarQuantidadeCarrinho(item.id, String(item.quantidade + 1))}>+</button>
+                    </div>
+                  </div>
+                  <div className="cart-item-footer">
+                    <b>Subtotal: {brlCents(subtotalCents(item.preco, item.quantidade))}</b>
+                    <button className="cart-remove" onClick={() => removerDoCarrinho(item.id)}>Remover</button>
+                  </div>
+                </div>
+              </article>
+            ))}
+            <div className="cart-summary">
+              <div><span>{buyerCart.length} {buyerCart.length === 1 ? "produto" : "produtos"}</span><b>{brlCents(total)}</b></div>
+              <p className="mute">Cada item será enviado como uma negociação separada ao fornecedor. O pagamento acontece após a aceitação dos dois lados.</p>
+            </div>
+            <button className="btn or cart-checkout" disabled={busy} onClick={enviarCarrinho}>
+              <Ic k="receipt" />{busy ? "Enviando pedidos..." : "Enviar pedidos para negociação"}
+            </button>
+          </> : <>
+            <div className="cart-empty"><Ic k="bag" /><b>Seu carrinho está vazio</b><p className="mute">Explore os produtos e adicione os itens que deseja negociar.</p></div>
+            <button className="btn or" onClick={() => go("feed")}>Explorar produtos</button>
+          </>}
+        </div>
+        <Nav a="carrinho" />
+      </>);
       break;
     }
     case "conversas": body = (<><div className="scr"><Title>Mensagens</Title>
@@ -747,14 +985,43 @@ export function ForneceApp() {
     case "meus": body = (<><div className="scr"><Title>Meus produtos</Title>
       {d?.length ? d.map((p: Prod) => <Card key={p.id} p={p} />) : <p className="mute" style={{ marginTop: 12 }}>Você ainda não publicou produtos.</p>}
       <button className="btn or" onClick={() => setScr("novo")}>Adicionar produto</button></div><Nav a="meus" /></>); break;
-    case "pedidos": {
+    case "pedidos":
+    case "compras": {
       const f = me?.tipo === "f";
-      body = (<><div className="scr"><Title>{f ? "Pedidos recebidos" : "Meus pedidos"}</Title>
-        {d?.length ? d.map((o: any) => (
+      const purchasesView = scr === "compras";
+      const listedOrders = (d || []) as Purchase[];
+      body = (<><div className="scr"><Title>{purchasesView ? "Minhas compras e rastreamento" : f ? "Pedidos recebidos" : "Meus pedidos"}</Title>
+        {purchasesView && <div className="purchase-summary">
+          <b>Acompanhe suas compras</b>
+          <span className="mute">Atualizações de negociação, pagamento e envio em um só lugar.</span>
+        </div>}
+        {listedOrders.length ? listedOrders.map((o) => {
+          const rejected = o.status === "Recusado";
+          const paid = o.pagamento_status === "pago" || o.status === "Pago" || o.status === "Enviado";
+          const steps = [
+            { label: "Solicitação enviada", state: "done" },
+            { label: "Negociação", state: rejected ? "failed" : o.comprador_aceitou && o.fornecedor_aceitou ? "done" : "current" },
+            { label: "Pagamento", state: rejected ? "upcoming" : paid ? "done" : o.status === "Aguardando pagamento" || o.pagamento_status === "pendente" ? "current" : "upcoming" },
+            { label: "Envio", state: rejected ? "upcoming" : o.status === "Enviado" ? "done" : paid || o.status === "Aguardando envio" ? "current" : "upcoming" },
+          ];
+          return (
           <div key={o.id} className="pc" style={{ display: "block" }}>
             <div className="nm">{f ? o.cliente : o.nome}</div><div className="mute">{o.qtd} {pl(o.qtd, o.unidade)} de {o.nome}</div>
             <div className="mute">Total: {brl(Number(o.preco_unitario) * o.qtd)}</div>
             <span className={"tag t" + STs.indexOf(o.status)}>{o.status}</span>
+            {purchasesView && <>
+              <p className="purchase-date">Pedido feito em {new Date(o.criado_em).toLocaleDateString("pt-BR")}</p>
+              <ol className="purchase-timeline" aria-label={`Acompanhamento do pedido ${o.id}`}>
+                {steps.map((step) => <li key={step.label} className={`purchase-step ${step.state}`}>
+                  <span className="purchase-step-marker" aria-hidden="true">{step.state === "done" ? "✓" : step.state === "failed" ? "!" : ""}</span>
+                  <span>{step.label}</span>
+                  <small>{step.state === "done" ? "Concluído" : step.state === "current" ? "Em andamento" : step.state === "failed" ? "Recusada" : "Aguardando etapa anterior"}</small>
+                </li>)}
+              </ol>
+              {rejected && <p className="purchase-tracking-note">Esta negociação foi recusada. Você pode conversar com o fornecedor para esclarecer dúvidas.</p>}
+              {!rejected && o.status === "Enviado" && <p className="purchase-tracking-note">O fornecedor marcou este pedido como enviado. O app ainda não recebe código nem eventos de rastreio da transportadora.</p>}
+              {!rejected && o.status !== "Enviado" && <p className="purchase-tracking-note">O envio ainda não foi confirmado pelo fornecedor.</p>}
+            </>}
             {o.status === "Em negociação" && ((f && !o.fornecedor_aceitou) || (!f && !o.comprador_aceitou)) &&
               <button className="btn or sm2" onClick={() => aceitarNegociacao(o.id)}>Aceitar negociação</button>}
             {f && <div className="act">
@@ -767,8 +1034,10 @@ export function ForneceApp() {
             {!f && o.status === "Enviado" && (o.avaliado
               ? <div className="mute" style={{ marginTop: 6 }}>Você já avaliou este pedido.</div>
               : <button className="btn or sm2" onClick={() => { setNota(0); setX(o); setScr("avaliar"); }}><Ic k="star" />Avaliar fornecedor</button>)}
-          </div>)) : <p className="mute" style={{ marginTop: 12 }}>Nenhum pedido por enquanto.</p>}
-      </div><Nav a="pedidos" /></>);
+          </div>);
+        }) : <p className="mute" style={{ marginTop: 12 }}>{purchasesView ? "Você ainda não fez compras. Explore o catálogo para encontrar produtos." : "Nenhum pedido por enquanto."}</p>}
+        {purchasesView && !listedOrders.length && <button className="btn or" onClick={() => go("feed")}>Explorar produtos</button>}
+      </div><Nav a={purchasesView ? "perfil" : "pedidos"} /></>);
       break;
     }
     case "perfil": body = (<><div className="scr"><div className="screen-title"><span /><HelpButton /></div>
@@ -784,7 +1053,7 @@ export function ForneceApp() {
         <button className="menu" disabled={busy || mercadoPagoConnected || mercadoPagoStatus === "unavailable"} onClick={conectarMercadoPago}><Ic k="card" />{mercadoPagoConnected ? "Mercado Pago conectado" : mercadoPagoStatus === "unavailable" ? "Status Mercado Pago indisponível" : "Conectar Mercado Pago para receber"}</button>
         {mercadoPagoStatus === "unavailable" && <p className="integration-notice" role="status">Seu perfil está disponível, mas o status do Mercado Pago não pôde ser verificado. Aplique a migração de pagamentos mais recente no Supabase para habilitar essa consulta.</p>}
       </> : <>
-        <button className="menu" onClick={() => go("pedidos")}><Ic k="receipt" />Meus pedidos e pagamentos</button>
+        <button className="menu" onClick={() => go("compras")}><Ic k="truck" />Minhas compras e rastreamento</button>
         <button className="menu" onClick={() => go("favs")}><Ic k="heart" />Produtos favoritos</button>
         <button className="menu" onClick={() => go("conversas")}><Ic k="msg" />Conversas com fornecedores</button>
       </>}
