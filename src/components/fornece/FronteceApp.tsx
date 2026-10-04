@@ -27,7 +27,7 @@ const Ic = ({ k, f }: { k: string; f?: boolean }) => (
 const PL: Record<string, string> = { unidade: "unidades", caixa: "caixas", fardo: "fardos", pacote: "pacotes", "peça": "peças", "galão": "galões" };
 const pl = (n: number, u: string) => (+n === 1 ? u : PL[u] || u);
 const STs = ["Em negociação", "Aguardando envio", "Enviado", "Recusado"];
-const CATS = ["Todos", "Alimentos", "Roupas", "Limpeza", "Eletrônicos"];
+const CATS = ["Todos", "Alimentos", "Bebidas", "Roupas", "Limpeza", "Eletrônicos", "Químicos", "Agropecuária", "Construção", "Embalagens", "Higiene", "Autopeças"];
 const brl = (n: number) => "R$ " + Number(n).toFixed(2).replace(".", ",");
 
 type Me = { id: string; tipo: "f" | "e"; empresa: string; email: string | null; descricao: string | null; avatar_path: string | null; atuacao: string | null; categoria: string | null; cidade: string | null };
@@ -477,7 +477,7 @@ export function ForneceApp() {
           <label>E-mail<input id="c4" type="email" autoComplete="off" defaultValue="" /></label>
           <Pw id="c5" label="Senha (mín. 6 caracteres)" autoComplete="new-password" />
           <Pw id="c5b" label="Confirmar senha" autoComplete="new-password" onEnter={cadastrar} />
-          <label>{f ? "Categoria" : "Segmento"}<select id="c6">{(f ? CATS.slice(1) : ["Restaurante", "Mercado", "Loja de roupas", "Assistência técnica"]).map((o) => <option key={o}>{o}</option>)}</select></label>
+          <label>{f ? "Categoria" : "Segmento"}<select id="c6">{(f ? CATS.slice(1) : ["Mercado / Supermercado", "Restaurante / Lanchonete", "Indústria química", "Indústria alimentícia", "Indústria têxtil", "Indústria metalúrgica", "Fazenda / Agronegócio", "Construção civil", "Farmácia / Drogaria", "Padaria / Confeitaria", "Loja de roupas", "Material de construção", "Autopeças / Oficina", "Hotel / Pousada", "Distribuidora", "Assistência técnica", "Outro"]).map((o) => <option key={o}>{o}</option>)}</select></label>
           <label>Atividade<select id="c8" defaultValue=""><option value="">Selecione (opcional)</option><option>Indústria</option><option>Loja/empresa</option></select></label>
           <button className="btn or" disabled={busy} onClick={cadastrar}>{busy ? "Cadastrando..." : "Cadastrar"}</button></div>);
       break;
