@@ -27,7 +27,7 @@ const Ic = ({ k, f }: { k: string; f?: boolean }) => (
 const PL: Record<string, string> = { unidade: "unidades", caixa: "caixas", fardo: "fardos", pacote: "pacotes", "peça": "peças", "galão": "galões" };
 const pl = (n: number, u: string) => (+n === 1 ? u : PL[u] || u);
 const STs = ["Em negociação", "Aguardando envio", "Enviado", "Recusado"];
-const CATS = ["Todos", "Alimentos", "Roupas", "Limpeza", "Eletrônicos"];
+const CATS = ["Todos", "Alimentos", "Bebidas", "Roupas", "Limpeza", "Eletrônicos", "Químicos", "Agropecuária", "Construção", "Embalagens", "Higiene", "Autopeças"];
 const brl = (n: number) => "R$ " + Number(n).toFixed(2).replace(".", ",");
 
 type Me = { id: string; tipo: "f" | "e"; empresa: string; email: string | null; descricao: string | null; avatar_path: string | null; atuacao: string | null; categoria: string | null; cidade: string | null };
@@ -124,10 +124,24 @@ export function ForneceApp() {
           .or(`and(de_id.eq.${m.id},para_id.eq.${arg}),and(de_id.eq.${arg},para_id.eq.${m.id})`).order("id"); err(error);
         data = { com, msgs: (msgs || []).map((r) => ({ ...r, hora: new Date(r.criado_em).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }) })) };
       } else if (s === "painel" && m) {
-        const { data: ps } = await supabase.from("produtos").select("id,views").eq("fornecedor_id", m.id);
+        const { data: ps } = await supabase.from("produtos").select("id,nome,preco,unidade,views").eq("fornecedor_id", m.id);
         const { count: msgs } = await supabase.from("mensagens").select("id", { count: "exact", head: true }).eq("para_id", m.id);
-        const { count: peds } = await supabase.from("pedidos").select("id", { count: "exact", head: true });
-        data = { produtos: ps?.length || 0, views: (ps || []).reduce((a, p) => a + p.views, 0), mensagens: msgs || 0, pedidos: peds || 0 };
+        const ids = (ps || []).map((p) => p.id);
+        const { data: pds } = ids.length ? await supabase.from("pedidos").select("produto_id,qtd,status").in("produto_id", ids) : { data: [] as any[] };
+        const { data: avs } = await supabase.from("avaliacoes").select("nota").eq("fornecedor_id", m.id);
+        const st: Record<string, number> = { "Em negociação": 0, "Aguardando envio": 0, "Enviado": 0, "Recusado": 0 };
+        let receita = 0, unidades = 0;
+        const linhas = (ps || []).map((p) => {
+          const meus = (pds || []).filter((o: any) => o.produto_id === p.id);
+          const vend = meus.filter((o: any) => o.status === "Enviado").reduce((a: number, o: any) => a + o.qtd, 0);
+          const rec = vend * Number(p.preco);
+          receita += rec; unidades += vend;
+          return { ...p, pedidos: meus.length, vendidos: vend, receita: rec, conv: p.views ? Math.round((meus.length / p.views) * 100) : 0 };
+        }).sort((a, b) => b.receita - a.receita || b.views - a.views);
+        (pds || []).forEach((o: any) => { st[o.status] = (st[o.status] || 0) + 1; });
+        const notas = (avs || []).map((a) => a.nota);
+        data = { produtos: ps?.length || 0, views: (ps || []).reduce((a, p) => a + p.views, 0), mensagens: msgs || 0, pedidos: pds?.length || 0,
+          receita, unidades, st, linhas, media: notas.length ? (notas.reduce((a, b) => a + b, 0) / notas.length).toFixed(1) : "—", nAval: notas.length };
       } else if (s === "pedidos") {
         const { data: rows, error } = await supabase.from("pedidos")
           .select("id,qtd,status,empresario_id,produto:produtos(nome,unidade,fornecedor_id),cliente:profiles!pedidos_empresario_id_fkey(empresa)").order("id", { ascending: false }); err(error);
@@ -463,7 +477,7 @@ export function ForneceApp() {
           <label>E-mail<input id="c4" type="email" autoComplete="off" defaultValue="" /></label>
           <Pw id="c5" label="Senha (mín. 6 caracteres)" autoComplete="new-password" />
           <Pw id="c5b" label="Confirmar senha" autoComplete="new-password" onEnter={cadastrar} />
-          <label>{f ? "Categoria" : "Segmento"}<select id="c6">{(f ? CATS.slice(1) : ["Restaurante", "Mercado", "Loja de roupas", "Assistência técnica"]).map((o) => <option key={o}>{o}</option>)}</select></label>
+          <label>{f ? "Categoria" : "Segmento"}<select id="c6">{(f ? CATS.slice(1) : ["Mercado / Supermercado", "Restaurante / Lanchonete", "Indústria química", "Indústria alimentícia", "Indústria têxtil", "Indústria metalúrgica", "Fazenda / Agronegócio", "Construção civil", "Farmácia / Drogaria", "Padaria / Confeitaria", "Loja de roupas", "Material de construção", "Autopeças / Oficina", "Hotel / Pousada", "Distribuidora", "Assistência técnica", "Outro"]).map((o) => <option key={o}>{o}</option>)}</select></label>
           <label>Atividade<select id="c8" defaultValue=""><option value="">Selecione (opcional)</option><option>Indústria</option><option>Loja/empresa</option></select></label>
           <button className="btn or" disabled={busy} onClick={cadastrar}>{busy ? "Cadastrando..." : "Cadastrar"}</button></div>);
       break;
@@ -517,9 +531,21 @@ export function ForneceApp() {
     case "painel": body = (<>
       <div className="hd"><img src={logoBranco.url} alt="Fornece Já" /><div className="header-actions"><HelpButton /><Bell /></div></div>
       <div className="scr"><h1>Olá, {me?.empresa}!</h1><p className="mute">Seu painel de hoje</p>
-        <div className="grid" style={{ marginTop: 12 }}>
+        <h3 style={{ marginTop: 14 }}>Painel de administração</h3>
+        <div className="grid" style={{ marginTop: 8 }}>
           <div className="kpi"><b>{d.produtos}</b>Produtos ativos</div><div className="kpi"><b>{d.views}</b>Visualizações</div>
-          <div className="kpi"><b>{d.mensagens}</b>Mensagens</div><div className="kpi"><b>{d.pedidos}</b>Pedidos recebidos</div></div>
+          <div className="kpi"><b>{d.pedidos}</b>Pedidos recebidos</div><div className="kpi"><b>{d.mensagens}</b>Mensagens</div>
+          <div className="kpi"><b>{brl(d.receita || 0)}</b>Vendas concluídas</div><div className="kpi"><b>{d.unidades}</b>Unidades vendidas</div>
+          <div className="kpi"><b>{d.media}</b>Nota média ({d.nAval})</div><div className="kpi"><b>{d.views ? Math.round((d.pedidos / d.views) * 100) : 0}%</b>Conversão</div></div>
+        <h3 style={{ marginTop: 14 }}>Pedidos por status</h3>
+        <div className="grid" style={{ marginTop: 8 }}>{Object.entries(d.st || {}).map(([k, v]) => <div key={k} className="kpi"><b>{v as number}</b>{k}</div>)}</div>
+        <h3 style={{ marginTop: 14 }}>Desempenho por produto</h3>
+        {(d.linhas || []).length === 0 ? <p className="mute">Nenhum produto cadastrado ainda.</p> : (
+          <div style={{ overflowX: "auto", marginTop: 8 }}><table className="adm">
+            <thead><tr><th>Produto</th><th>Preço</th><th>Views</th><th>Pedidos</th><th>Vendidos</th><th>Receita</th><th>Conv.</th></tr></thead>
+            <tbody>{d.linhas.map((p: any) => <tr key={p.id}><td>{p.nome}</td><td>{brl(Number(p.preco))}</td><td>{p.views}</td><td>{p.pedidos}</td><td>{p.vendidos} {p.unidade}</td><td>{brl(p.receita)}</td><td>{p.conv}%</td></tr>)}</tbody>
+          </table></div>)}
+        <h3 style={{ marginTop: 14 }}>Atalhos</h3>
         <button className="menu" onClick={() => setScr("novo")}><Ic k="plus" />Adicionar produto</button>
         <button className="menu" onClick={() => go("meus")}><Ic k="box" />Meus produtos</button>
         <button className="menu" onClick={() => go("pedidos")}><Ic k="receipt" />Pedidos recebidos</button>
