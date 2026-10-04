@@ -53,6 +53,7 @@ export function ForneceApp() {
   const [role, setRole] = useState<"f" | "e" | null>(null);
   const [docTipo, setDocTipo] = useState<"cpf" | "cnpj">("cpf");
   const [busy, setBusy] = useState(false);
+  const [notif, setNotif] = useState<{ k: string; t: string; ic: string; tit: string; sub: string; act: () => void }[] | null>(null);
   const fresh = useRef(0);
   const meRef = useRef<Me | null>(null);
   meRef.current = me;
@@ -269,9 +270,9 @@ export function ForneceApp() {
     const f = me?.tipo === "f";
     const it: [Scr, string, string][] = f
       ? [["painel", "home", "Início"], ["meus", "box", "Produtos"], ["conversas", "msg", "Mensagens"], ["pedidos", "receipt", "Pedidos"], ["perfil", "user", "Perfil"]]
-      : [["feed", "home", "Início"], ["feed", "grid", "Categorias"], ["conversas", "msg", "Mensagens"], ["favs", "heart", "Favoritos"], ["perfil", "user", "Perfil"]];
+      : [["feed", "home", "Início"], ["conversas", "msg", "Mensagens"], ["favs", "heart", "Favoritos"], ["perfil", "user", "Perfil"]];
     return <nav className="nav">{it.map((i) => (
-      <button key={i[2]} className={i[0] === a && i[2] !== "Categorias" ? "on" : ""} onClick={() => go(i[0])}><Ic k={i[1]} />{i[2]}</button>
+      <button key={i[2]} className={i[0] === a ? "on" : ""} onClick={() => go(i[0])}><Ic k={i[1]} />{i[2]}</button>
     ))}</nav>;
   };
   const Card = ({ p }: { p: Prod }) => (
@@ -280,7 +281,32 @@ export function ForneceApp() {
       <div className="price">{brl(p.preco)} / {p.unidade}</div>
       <button className="sm" onClick={() => go("det", p.id)}>Ver detalhes</button></div></div>
   );
-  const Bell = () => <button className="ib" aria-label="Mensagens" onClick={() => go("conversas")}><Ic k="bell" /></button>;
+  const abrirNotif = async () => {
+    if (notif) return setNotif(null);
+    const m = meRef.current; if (!m) return;
+    setNotif([]);
+    const { data: msgs } = await supabase.from("mensagens").select("id,de_id,texto,criado_em").eq("para_id", m.id).order("id", { ascending: false }).limit(6);
+    const { data: peds } = await supabase.from("pedidos").select("id,status,criado_em,produto:produtos(nome)").order("id", { ascending: false }).limit(5);
+    const ids = [...new Set((msgs || []).map((r) => r.de_id))];
+    const { data: ps } = ids.length ? await supabase.from("profiles").select("id,empresa").in("id", ids) : { data: [] };
+    const nm = new Map((ps || []).map((p) => [p.id, p.empresa]));
+    const its = [
+      ...(msgs || []).map((r) => ({ k: "m" + r.id, t: r.criado_em, ic: "msg", tit: nm.get(r.de_id) || "Mensagem", sub: r.texto, act: () => go("chat", r.de_id) })),
+      ...(peds || []).map((o: any) => ({ k: "p" + o.id, t: o.criado_em, ic: "receipt", tit: `Pedido: ${o.produto?.nome ?? ""}`, sub: o.status, act: () => go("pedidos") })),
+    ].sort((a, b) => (a.t < b.t ? 1 : -1));
+    setNotif(its);
+  };
+  const Bell = () => (
+    <div className="notif-wrap">
+      <button className="ib" aria-label="Notificações" aria-expanded={!!notif} onClick={abrirNotif}><Ic k="bell" /></button>
+      {notif && <div className="notif-pop" role="dialog" aria-label="Notificações">
+        <b>Notificações</b>
+        {notif.length ? notif.map((n) => (
+          <button key={n.k} className="notif-it" onClick={() => { setNotif(null); n.act(); }}><Ic k={n.ic} /><span><b>{n.tit}</b><span className="mute">{n.sub}</span></span></button>
+        )) : <p className="mute">Nenhuma novidade por enquanto.</p>}
+      </div>}
+    </div>
+  );
   const searchT = useRef<any>(null);
 
   let body: React.ReactNode = null;
@@ -355,8 +381,8 @@ export function ForneceApp() {
           <label>{pf ? "CPF" : "CNPJ"}<input id="c2" key={pf ? "cpf" : "cnpj"} inputMode="numeric" maxLength={pf ? 14 : 18} placeholder={pf ? "000.000.000-00" : "00.000.000/0000-00"} /></label>
           <label>Telefone<input id="c3" type="tel" /></label>
           {f && <label>Cidade / UF<input id="c7" placeholder="Campinas, SP" /></label>}
-          <label>E-mail<input id="c4" type="email" /></label>
-          <label>Senha (mín. 6 caracteres)<input id="c5" type="password" /></label>
+          <label>E-mail<input id="c4" type="email" autoComplete="off" defaultValue="" /></label>
+          <label>Senha (mín. 6 caracteres)<input id="c5" type="password" autoComplete="new-password" defaultValue="" readOnly onFocus={(e) => e.currentTarget.removeAttribute("readonly")} /></label>
           <label>{f ? "Categoria" : "Segmento"}<select id="c6">{(f ? CATS.slice(1) : ["Restaurante", "Mercado", "Loja de roupas", "Assistência técnica"]).map((o) => <option key={o}>{o}</option>)}</select></label>
           <button className="btn or" disabled={busy} onClick={cadastrar}>{busy ? "Cadastrando..." : "Cadastrar"}</button></div>);
       break;
