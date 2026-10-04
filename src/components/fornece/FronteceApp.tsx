@@ -79,6 +79,7 @@ type Scr = "splash" | "login" | "tipo" | "cad" | "feed" | "favs" | "meus" | "det
 const PSEL = "*, p:profiles!produtos_fornecedor_id_fkey(empresa,cidade)";
 const productPhotoUrl = (path: string | null | undefined) => path ? supabase.storage.from("fotos-produtos").getPublicUrl(path).data.publicUrl : null;
 const mapP = (r: any): Prod => ({ ...r, preco: Number(r.preco), fornecedor: r.p?.empresa ?? "", cidade: r.p?.cidade ?? null, imageUrl: productPhotoUrl(r.imagem_path) });
+const isMissingColumnError = (error: { code?: string } | null) => error?.code === "42703" || error?.code === "PGRST204";
 const Stars = ({ n, size = 16 }: { n: number; size?: number }) => (
   <span className="stars" aria-label={`${n.toFixed(1)} de 5`}>{[1, 2, 3, 4, 5].map((i) => (
     <svg key={i} width={size} height={size} viewBox="0 0 24 24" className={i <= Math.round(n) ? "on" : ""}><path d={ICONS["star"]} /></svg>))}</span>
@@ -224,10 +225,9 @@ export function ForneceApp() {
         const c = opts?.cat ?? cat;
         if (s === "feed" && c !== "Todos") qb = qb.eq("categoria", c);
         if (s === "meus" && m) qb = qb.eq("fornecedor_id", m.id);
-        qb = qb.eq("ativo", true);
         const { data: rows, error } = await qb; err(error);
         const fs = await favIds();
-        let list = (rows || []).map(mapP).map((p) => ({ ...p, fav: fs.has(p.id) }));
+        let list = (rows || []).filter((row) => row.ativo !== false).map(mapP).map((p) => ({ ...p, fav: fs.has(p.id) }));
         if (s === "favs") list = list.filter((p) => p.fav);
         const term = (opts?.q ?? q).trim().toLowerCase();
         if (s === "feed" && term) list = list.filter((p) => [p.nome, p.fornecedor, p.cidade || ""].some((v) => v.toLowerCase().includes(term)));
@@ -244,7 +244,7 @@ export function ForneceApp() {
           if (!ids.length) data = [];
           else {
             const { data: suppliers, error: supplierError } = await supabase.from("profiles")
-              .select("id,empresa,categoria,cidade,descricao,avatar_path,atuacao,cnpj,telefone_publico,endereco")
+              .select("id,empresa,categoria,cidade,descricao,avatar_path,atuacao")
               .in("id", ids);
             err(supplierError);
             data = suppliers || [];
@@ -253,7 +253,9 @@ export function ForneceApp() {
           data = list;
         }
       } else if (s === "det") {
-        const { data: r, error } = await supabase.from("produtos").select(PSEL).eq("id", arg).eq("ativo", true).single(); err(error);
+        const { data: r, error } = await supabase.from("produtos").select(PSEL).eq("id", arg).single(); err(error);
+        if (!r) throw new Error("Produto não encontrado.");
+        if (r.ativo === false) throw new Error("Este produto não está mais disponível.");
         const { error: viewError } = await supabase.rpc("ver_produto", { _id: arg });
         err(viewError);
         const fs = await favIds();
@@ -261,22 +263,34 @@ export function ForneceApp() {
         const notas = (av || []).map((a) => a.nota);
         data = { ...mapP(r), fav: fs.has(arg), nota: media(notas), nAval: notas.length };
       } else if (s === "forn") {
-        const { data: pf, error } = await supabase.from("profiles").select("id,empresa,categoria,cidade,descricao,avatar_path,atuacao,cnpj,telefone_publico,endereco").eq("id", arg).single(); err(error);
+        const { data: pf, error } = await supabase.from("profiles").select("id,empresa,categoria,cidade,descricao,avatar_path,atuacao").eq("id", arg).single(); err(error);
+        const { data: details, error: detailsError } = await supabase.from("profiles").select("cnpj,telefone_publico,endereco").eq("id", arg).maybeSingle();
+        if (detailsError && !isMissingColumnError(detailsError)) err(detailsError);
+        const supplierProfile = { ...pf, ...(details || {}) };
         const { data: av } = await supabase.from("avaliacoes")
           .select("id,nota,comentario,criado_em,autor:profiles!avaliacoes_empresario_id_fkey(empresa)").eq("fornecedor_id", arg).order("id", { ascending: false });
-        const { data: rows, error: productError } = await supabase.from("produtos").select(PSEL).eq("fornecedor_id", arg).eq("ativo", true).order("id", { ascending: false });
+        const { data: rows, error: productError } = await supabase.from("produtos").select(PSEL).eq("fornecedor_id", arg).order("id", { ascending: false });
         err(productError);
         const { data: supplierFavorite, error: supplierFavoriteError } = m?.tipo === "e"
           ? await supabase.from("fornecedores_favoritos").select("fornecedor_id").eq("fornecedor_id", arg).maybeSingle()
           : { data: null, error: null };
         err(supplierFavoriteError);
-        data = { pf, avatarUrl: await signedPhoto(pf?.avatar_path), av: av || [], nota: media((av || []).map((a) => a.nota)), prods: (rows || []).map(mapP), favoritado: !!supplierFavorite };
+        data = { pf: supplierProfile, avatarUrl: await signedPhoto(pf?.avatar_path), av: av || [], nota: media((av || []).map((a) => a.nota)), prods: (rows || []).filter((row) => row.ativo !== false).map(mapP), favoritado: !!supplierFavorite };
       } else if (s === "perfil" && m) {
-        const { data: pf, error } = await supabase.from("profiles").select("id,tipo,empresa,descricao,avatar_path,atuacao,categoria,cidade,cnpj,telefone_publico,endereco").eq("id", m.id).single(); err(error);
+        const { data: pf, error } = await supabase.from("profiles").select("id,tipo,empresa,descricao,avatar_path,atuacao,categoria,cidade").eq("id", m.id).single(); err(error);
         if (!pf) throw new Error("Não foi possível carregar seu perfil.");
-        const { data: privateProfile, error: privateError } = await supabase.from("profiles_private").select("telefone").eq("id", m.id).maybeSingle();
+        const { data: details, error: detailsError } = await supabase.from("profiles").select("cnpj,telefone_publico,endereco").eq("id", m.id).maybeSingle();
+        if (detailsError && !isMissingColumnError(detailsError)) err(detailsError);
+        const { data: privateProfile, error: privateError } = await supabase.from("profiles_private").select("telefone,documento,documento_tipo").eq("id", m.id).maybeSingle();
         err(privateError);
-        const profileMe = { ...pf, email: m.email, telefone: pf.tipo === "f" ? pf.telefone_publico : privateProfile?.telefone, endereco: pf.endereco };
+        const profileMe = {
+          ...pf,
+          ...(details || {}),
+          email: m.email,
+          cnpj: details?.cnpj || (pf.tipo === "f" && privateProfile?.documento_tipo === "cnpj" ? privateProfile.documento : null),
+          telefone: pf.tipo === "f" ? details?.telefone_publico || privateProfile?.telefone : privateProfile?.telefone,
+          endereco: details?.endereco || null,
+        };
         setMe(profileMe as Me);
         setAvatarUrl(await signedPhoto(pf?.avatar_path));
         data = profileMe;
@@ -326,7 +340,7 @@ export function ForneceApp() {
           negotiations,
         };
       } else if (s === "painel" && m) {
-        const { data: ps } = await supabase.from("produtos").select("id,nome,preco,unidade,views").eq("fornecedor_id", m.id).eq("ativo", true);
+        const { data: ps } = await supabase.from("produtos").select("id,nome,preco,unidade,views").eq("fornecedor_id", m.id);
         const { count: msgs } = await supabase.from("mensagens").select("id", { count: "exact", head: true }).eq("para_id", m.id);
         const ids = (ps || []).map((p) => p.id);
         const { data: pds } = ids.length ? await supabase.from("pedidos").select("produto_id,qtd,status,preco_unitario").in("produto_id", ids) : { data: [] as any[] };
@@ -366,13 +380,13 @@ export function ForneceApp() {
   const loadMe = useCallback(async (): Promise<Me | null> => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return null;
-    const { data: profile, error: profileError } = await supabase.from("profiles").select("id,tipo,empresa,descricao,avatar_path,atuacao,categoria,cidade,cnpj,telefone_publico,endereco").eq("id", user.id).maybeSingle();
+    const { data: profile, error: profileError } = await supabase.from("profiles").select("id,tipo,empresa,descricao,avatar_path,atuacao,categoria,cidade").eq("id", user.id).maybeSingle();
     err(profileError);
     let p = profile;
     if (!p) {
       const md: any = user.user_metadata || {};
       if (!md.tipo) return null;
-      const ins = { id: user.id, tipo: md.tipo, empresa: md.empresa || user.email || "Minha empresa", email: user.email ?? null, categoria: md.categoria || null, cidade: md.cidade || null, atuacao: md.atuacao || null, descricao: null, avatar_path: null, cnpj: md.tipo === "f" ? md.documento || null : null, telefone_publico: md.tipo === "f" ? md.telefone || null : null, endereco: md.tipo === "f" ? md.endereco || null : null };
+      const ins = { id: user.id, tipo: md.tipo, empresa: md.empresa || user.email || "Minha empresa", email: user.email ?? null, categoria: md.categoria || null, cidade: md.cidade || null, atuacao: md.atuacao || null, descricao: null, avatar_path: null };
       const { error } = await supabase.from("profiles").insert(ins);
       if (error) throw new Error(error.message);
       const { error: privateInsertError } = await supabase.from("profiles_private").insert({ id: user.id, documento: md.documento || null, documento_tipo: md.documento_tipo || "cnpj", telefone: md.telefone || null });
@@ -380,13 +394,24 @@ export function ForneceApp() {
       p = ins as any;
     }
     if (!p) throw new Error("Não foi possível carregar seu perfil.");
-    const { data: privateProfile, error: privateError } = await supabase.from("profiles_private").select("telefone").eq("id", user.id).maybeSingle();
+    const { data: privateProfile, error: privateError } = await supabase.from("profiles_private").select("telefone,documento,documento_tipo").eq("id", user.id).maybeSingle();
     err(privateError);
-    return { ...p, email: user.email ?? null, telefone: p.tipo === "f" ? p.telefone_publico : privateProfile?.telefone } as Me;
+    return {
+      ...p,
+      email: user.email ?? null,
+      cnpj: p.tipo === "f" && privateProfile?.documento_tipo === "cnpj" ? privateProfile.documento : null,
+      telefone: privateProfile?.telefone ?? null,
+      endereco: null,
+    } as Me;
   }, []);
 
   useEffect(() => {
-    loadMe().then((m) => { if (m) { setMe(m); home(m); } });
+    loadMe()
+      .then((m) => { if (m) { setMe(m); home(m); } })
+      .catch((error) => {
+        console.error("[session] Could not restore the signed-in profile", error);
+        toast("Sua sessão existe, mas não foi possível carregar o perfil. Verifique a configuração do banco e tente entrar novamente.");
+      });
     const { data: sub } = supabase.auth.onAuthStateChange((ev) => {
       if (ev === "SIGNED_OUT") { setMe(null); setScr("splash"); }
     });
@@ -435,7 +460,10 @@ export function ForneceApp() {
         if (error.status === 429) return toast("Muitas tentativas. Aguarde um pouco e tente novamente.");
         if (error.status === 400 || error.code === "invalid_credentials") return toast("E-mail ou senha incorretos. Confira os dados ou recupere sua senha.");
         console.error("[login] Supabase authentication failed", error);
-        return toast("Não foi possível conectar à autenticação. Tente novamente.");
+        if (error.name === "AuthRetryableFetchError" || error.status === 0) {
+          return toast("Não foi possível alcançar o servidor de autenticação do Supabase. Tente novamente em instantes.");
+        }
+        return toast(error.message || "A autenticação não pôde ser concluída.");
       }
       try {
         if (rememberLogin) {
@@ -448,12 +476,25 @@ export function ForneceApp() {
       } catch {
         toast("Login realizado, mas não foi possível salvar sua preferência neste dispositivo.");
       }
-      const m = await loadMe();
+      let m: Me | null;
+      try {
+        m = await loadMe();
+      } catch (error) {
+        console.error("[login] Authentication succeeded but profile loading failed", error);
+        toast(error instanceof Error
+          ? `Login reconhecido, mas não foi possível carregar o perfil: ${error.message}`
+          : "Login reconhecido, mas não foi possível carregar o perfil.");
+        return;
+      }
       if (!m) return toast("Login confirmado, mas não foi possível carregar seu perfil. Tente novamente.");
       setMe(m); home(m);
     } catch (error) {
       console.error("[login] Unexpected authentication error", error);
-      toast("Erro de conexão ao entrar. Verifique sua internet e tente novamente.");
+      const message = error instanceof Error ? error.message : "";
+      const networkFailure = error instanceof TypeError || /network|fetch failed|failed to fetch/i.test(message);
+      toast(networkFailure
+        ? "Não foi possível alcançar o servidor de autenticação do Supabase. Tente novamente em instantes."
+        : message || "Não foi possível concluir o login. Tente novamente.");
     } finally {
       setBusy(false);
     }
@@ -569,12 +610,11 @@ export function ForneceApp() {
     setBusy(true);
     try {
       const { data: products, error: productsError } = await supabase.from("produtos")
-        .select("id,nome,preco,unidade,qtd_min,fornecedor_id")
-        .eq("ativo", true)
+        .select("*")
         .in("id", cart.map((item) => item.id));
       if (productsError) throw new Error(productsError.message);
 
-      const available = new Map((products || []).map((product) => [product.id, product]));
+      const available = new Map((products || []).filter((product) => product.ativo !== false).map((product) => [product.id, product]));
       const missing = cart.filter((item) => !available.has(item.id));
       if (missing.length) {
         const missingIds = new Set(missing.map((item) => item.id));
@@ -835,9 +875,9 @@ export function ForneceApp() {
       if (!res.ok) { setIa((v) => ({ ...v, busy: false })); return toast(res.erro); }
       let prods: Prod[] = [];
       if (res.ids.length) {
-        const { data: rows } = await supabase.from("produtos").select(PSEL).eq("ativo", true).in("id", res.ids);
+        const { data: rows } = await supabase.from("produtos").select(PSEL).in("id", res.ids);
         const byId = new Map((rows || []).map((r: any) => [r.id, mapP(r)]));
-        prods = res.ids.map((i) => byId.get(i)).filter(Boolean) as Prod[];
+        prods = res.ids.map((i) => byId.get(i)).filter((product): product is Prod => !!product && product.ativo !== false);
       }
       setIa((v) => ({ ...v, busy: false, resumo: res.resumo, prods }));
     } catch { setIa((v) => ({ ...v, busy: false })); toast("Não foi possível fazer a busca agora."); }

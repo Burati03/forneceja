@@ -11,11 +11,11 @@ export const buscarComIA = createServerFn({ method: "POST" })
   .handler(async ({ data, context }): Promise<BuscaResultado> => {
     const { data: prods, error } = await context.supabase
       .from("produtos")
-      .select("id,nome,preco,unidade,qtd_min,categoria,descricao,p:profiles!produtos_fornecedor_id_fkey(empresa,cidade)")
-      .eq("ativo", true)
+      .select("*,p:profiles!produtos_fornecedor_id_fkey(empresa,cidade)")
       .limit(300);
     if (error) return { ok: false, erro: "Não foi possível ler o catálogo." };
-    const catalogo = (prods || []).map((p: any) =>
+    const availableProducts = (prods || []).filter((product: any) => product.ativo !== false);
+    const catalogo = availableProducts.map((p: any) =>
       `#${p.id} | ${p.nome} | ${p.categoria ?? ""} | R$ ${p.preco}/${p.unidade} (mín. ${p.qtd_min}) | ${p.p?.empresa ?? ""}, ${p.p?.cidade ?? ""} | ${p.descricao ?? ""}`,
     ).join("\n");
     try {
@@ -25,7 +25,7 @@ export const buscarComIA = createServerFn({ method: "POST" })
         [{ role: "user", content: `Catálogo:\n${catalogo}\n\nNecessidade do empresário: ${data.pedido}` }],
       );
       const json = JSON.parse(text.slice(text.indexOf("{"), text.lastIndexOf("}") + 1));
-      const valid = new Set((prods || []).map((p) => p.id));
+      const valid = new Set(availableProducts.map((p) => p.id));
       const ids = (Array.isArray(json.ids) ? json.ids : []).map(Number).filter((i: number) => valid.has(i));
       return { ok: true, ids, resumo: String(json.resumo ?? "") };
     } catch (e) {
