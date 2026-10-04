@@ -353,6 +353,30 @@
             margin-top: 12px
         }
 
+        .pw-wrap {
+            position: relative;
+            display: block
+        }
+
+        .pw-wrap input {
+            padding-right: 76px
+        }
+
+        .pw-eye {
+            position: absolute;
+            right: 6px;
+            top: 50%;
+            transform: translateY(-50%);
+            margin-top: 3px;
+            border: 0;
+            background: transparent;
+            color: var(--or);
+            font-size: 12px;
+            font-weight: 700;
+            cursor: pointer;
+            padding: 6px 8px
+        }
+
         .top {
             display: flex;
             align-items: center;
