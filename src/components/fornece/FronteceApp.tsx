@@ -104,11 +104,11 @@ export function ForneceApp() {
         const { data: av } = await supabase.from("avaliacoes")
           .select("id,nota,comentario,criado_em,autor:profiles!avaliacoes_empresario_id_fkey(empresa)").eq("fornecedor_id", arg).order("id", { ascending: false });
         const { data: rows } = await supabase.from("produtos").select(PSEL).eq("fornecedor_id", arg).order("id", { ascending: false });
-        data = { pf, avatarUrl: await signedPhoto(pf.avatar_path), av: av || [], nota: media((av || []).map((a) => a.nota)), prods: (rows || []).map(mapP) };
+        data = { pf, avatarUrl: await signedPhoto(pf?.avatar_path), av: av || [], nota: media((av || []).map((a) => a.nota)), prods: (rows || []).map(mapP) };
       } else if (s === "perfil" && m) {
         const { data: pf, error } = await supabase.from("profiles").select("id,tipo,empresa,email,descricao,avatar_path,atuacao,categoria,cidade").eq("id", m.id).single(); err(error);
         setMe(pf as Me);
-        setAvatarUrl(await signedPhoto(pf.avatar_path));
+        setAvatarUrl(await signedPhoto(pf?.avatar_path));
         data = pf;
       } else if (s === "conversas" && m) {
         const { data: msgs, error } = await supabase.from("mensagens").select("de_id,para_id,texto,id").order("id", { ascending: false }); err(error);
