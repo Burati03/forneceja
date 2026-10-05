@@ -52,9 +52,9 @@ export function agrupar(itens: ItemTexto[], sinais: Sinal[]): Grupo[] {
 
   const grupos: Grupo[] = cents.map((c, j) => {
     const membros = itens.map((_, i) => i).filter((i) => asg[i] === j);
-    const top = [...c.entries()].sort((a, b) => b[1] - a[1]).slice(0, 2).map(([t]) => t[0].toUpperCase() + t.slice(1));
-    membros.sort((a, b) => cos(vecs[b], c) - cos(vecs[a], c));
-    return { rotulo: top.join(" · ") || "Outros", ids: membros.map((i) => itens[i].id), afinidade: af[j] };
+    const top = [...c.entries()].sort((a, b) => b[1] - a[1]).slice(0, 2).map(([t]) => t[0]!.toUpperCase() + t.slice(1));
+    membros.sort((a, b) => cos(vecs[b]!, c) - cos(vecs[a]!, c));
+    return { rotulo: top.join(" · ") || "Outros", ids: membros.map((i) => itens[i]!.id), afinidade: af[j] };
   }).filter((g) => g.ids.length);
   return grupos.sort((a, b) => b.afinidade - a.afinidade);
 }
