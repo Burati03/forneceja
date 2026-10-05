@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useServerFn } from "@tanstack/react-start";
 import { buscarComIA } from "@/lib/busca.functions";
+import { agrupar } from "@/lib/clustering";
 import logoBranco from "@/assets/logo-branco.png.asset.json";
 import logoCor from "@/assets/logo-cor.png.asset.json";
 import logoEmp from "@/assets/logo-empilhado.png.asset.json";
@@ -1122,6 +1123,7 @@ export function ForneceApp() {
     </div>
   );
   const searchT = useRef<any>(null);
+  const logT = useRef<any>(null);
 
   const chatNegotiations = (d?.negotiations || []) as Negotiation[];
   let body: React.ReactNode = null;
