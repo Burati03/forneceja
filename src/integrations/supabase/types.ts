@@ -149,27 +149,106 @@ export type Database = {
           },
         ]
       }
+      mercado_pago_contas: {
+        Row: {
+          access_token: string
+          atualizado_em: string
+          expires_at: string
+          mp_user_id: string
+          profile_id: string
+          refresh_token: string
+        }
+        Insert: {
+          access_token: string
+          atualizado_em?: string
+          expires_at: string
+          mp_user_id: string
+          profile_id: string
+          refresh_token: string
+        }
+        Update: {
+          access_token?: string
+          atualizado_em?: string
+          expires_at?: string
+          mp_user_id?: string
+          profile_id?: string
+          refresh_token?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mercado_pago_contas_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mercado_pago_oauth_states: {
+        Row: {
+          expires_at: string
+          profile_id: string
+          state: string
+        }
+        Insert: {
+          expires_at: string
+          profile_id: string
+          state: string
+        }
+        Update: {
+          expires_at?: string
+          profile_id?: string
+          state?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mercado_pago_oauth_states_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       pedidos: {
         Row: {
+          comprador_aceitou: boolean
           criado_em: string
           empresario_id: string
+          fornecedor_aceitou: boolean
           id: number
+          mercado_pago_pagamento_id: string | null
+          mercado_pago_preferencia_id: string | null
+          pagamento_status: string
+          preco_unitario: number
           produto_id: number
           qtd: number
           status: string
         }
         Insert: {
+          comprador_aceitou?: boolean
           criado_em?: string
           empresario_id: string
+          fornecedor_aceitou?: boolean
           id?: number
+          mercado_pago_pagamento_id?: string | null
+          mercado_pago_preferencia_id?: string | null
+          pagamento_status?: string
+          preco_unitario: number
           produto_id: number
           qtd: number
           status?: string
         }
         Update: {
+          comprador_aceitou?: boolean
           criado_em?: string
           empresario_id?: string
+          fornecedor_aceitou?: boolean
           id?: number
+          mercado_pago_pagamento_id?: string | null
+          mercado_pago_preferencia_id?: string | null
+          pagamento_status?: string
+          preco_unitario?: number
           produto_id?: number
           qtd?: number
           status?: string
@@ -317,6 +396,8 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      aceitar_negociacao: { Args: { _id: number }; Returns: undefined }
+      mercado_pago_conectado: { Args: never; Returns: boolean }
       meu_tipo: { Args: never; Returns: string }
       mudar_status: {
         Args: { _id: number; _status: string }
