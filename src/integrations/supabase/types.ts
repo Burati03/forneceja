@@ -66,6 +66,27 @@ export type Database = {
           },
         ]
       }
+      buscas: {
+        Row: {
+          criado_em: string
+          id: number
+          termo: string
+          user_id: string
+        }
+        Insert: {
+          criado_em?: string
+          id?: never
+          termo: string
+          user_id?: string
+        }
+        Update: {
+          criado_em?: string
+          id?: never
+          termo?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       favoritos: {
         Row: {
           produto_id: number
