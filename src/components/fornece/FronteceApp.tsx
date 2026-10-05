@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useServerFn } from "@tanstack/react-start";
 import { buscarComIA } from "@/lib/busca.functions";
+import { agrupar } from "@/lib/clustering";
 import logoBranco from "@/assets/logo-branco.png.asset.json";
 import logoCor from "@/assets/logo-cor.png.asset.json";
 import logoEmp from "@/assets/logo-empilhado.png.asset.json";
@@ -871,6 +872,7 @@ export function ForneceApp() {
     if (pedido.length < 3) return toast("Descreva o que você precisa.");
     setIa((v) => ({ ...v, busy: true, prods: null, resumo: "" }));
     try {
+      registrarBusca(pedido);
       const res = await buscar({ data: { pedido } });
       if (!res.ok) { setIa((v) => ({ ...v, busy: false })); return toast(res.erro); }
       let prods: Prod[] = [];
@@ -882,6 +884,36 @@ export function ForneceApp() {
       setIa((v) => ({ ...v, busy: false, resumo: res.resumo, prods }));
     } catch { setIa((v) => ({ ...v, busy: false })); toast("Não foi possível fazer a busca agora."); }
   }
+
+  const [grupos, setGrupos] = useState<{ rotulo: string; prods: Prod[] }[] | null>(null);
+  function registrarBusca(termo: string) {
+    const t = termo.trim();
+    if (t.length >= 3 && me?.tipo === "e") void supabase.from("buscas" as any).insert({ termo: t.slice(0, 600) } as any);
+  }
+  async function carregarCatalogo() {
+    if (!me || me.tipo !== "e") return setGrupos(null);
+    const [pr, bs, pd, fv] = await Promise.all([
+      supabase.from("produtos").select(PSEL).limit(300),
+      supabase.from("buscas" as any).select("termo").eq("user_id", me.id).order("criado_em", { ascending: false }).limit(40),
+      supabase.from("pedidos").select("produto_id,qtd").eq("empresario_id", me.id).limit(200),
+      supabase.from("favoritos").select("produto_id").eq("user_id", me.id),
+    ]);
+    const prods = (pr.data || []).map((r: any) => mapP(r)).filter((p: Prod) => p.ativo !== false);
+    const sinais = [
+      ...((bs.data as any[]) || []).map((b, i) => ({ texto: b.termo as string, peso: Math.max(0.3, 1 - i * 0.03) })),
+      ...(pd.data || []).map((o: any) => ({ texto: "", peso: 3, produtoId: o.produto_id })),
+      ...(fv.data || []).map((f: any) => ({ texto: "", peso: 2, produtoId: f.produto_id })),
+    ];
+    const comprados = new Set((pd.data || []).map((o: any) => o.produto_id));
+    const byId = new Map(prods.map((p: Prod) => [p.id, p]));
+    const gs = agrupar(prods.map((p: any) => ({ id: p.id, preco: p.preco, texto: `${p.nome} ${p.categoria ?? ""} ${p.nome} ${p.descricao ?? ""}` })), sinais);
+    const temSinal = sinais.length > 0;
+    setGrupos(gs.filter((g) => !temSinal || g.afinidade > 0).slice(0, 4).map((g) => ({
+      rotulo: g.rotulo,
+      prods: [...g.ids.filter((i) => !comprados.has(i)), ...g.ids.filter((i) => comprados.has(i))].slice(0, 6).map((i) => byId.get(i)!).filter(Boolean),
+    })).filter((g) => g.prods.length));
+  }
+  useEffect(() => { if (scr === "feed") void carregarCatalogo(); }, [scr, me?.id]);
 
   async function esqueci() {
     const email = val("re").trim().toLowerCase();
@@ -1091,6 +1123,7 @@ export function ForneceApp() {
     </div>
   );
   const searchT = useRef<any>(null);
+  const logT = useRef<any>(null);
 
   const chatNegotiations = (d?.negotiations || []) as Negotiation[];
   let body: React.ReactNode = null;
@@ -1193,7 +1226,7 @@ export function ForneceApp() {
     case "feed": body = (<>
       <div className="hd"><img src={logoBranco.url} alt="Fornece Já" /><div className="header-actions"><HelpButton /><Bell /></div></div>
       <div className="scr"><div className="top"><input style={{ margin: 0 }} placeholder="Buscar produto, fornecedor ou cidade" value={q}
-        onChange={(e) => { const v = e.target.value; setQ(v); clearTimeout(searchT.current); searchT.current = setTimeout(() => load("feed", undefined, { q: v }), 250); }} /></div>
+        onChange={(e) => { const v = e.target.value; setQ(v); clearTimeout(searchT.current); searchT.current = setTimeout(() => load("feed", undefined, { q: v }), 250); clearTimeout(logT.current); logT.current = setTimeout(() => registrarBusca(v), 1500); }} /></div>
         <div className="chips">{CATS.map((c) => <button key={c} className={"chip " + (cat === c ? "on" : "")} onClick={() => { setCat(c); load("feed", undefined, { cat: c }); }}>{c}</button>)}</div>
         <div className="price-filters">
           <label>Preço mínimo<input type="number" min="0" step="0.01" inputMode="decimal" value={minPrice} placeholder="R$ 0,00" onChange={(event) => {
@@ -1210,6 +1243,11 @@ export function ForneceApp() {
           }} /></label>
         </div>
         {me?.tipo === "e" && <button className="ai-cta" onClick={() => setScr("ia")}><Ic k="star" /><span><b>Busca inteligente</b><span className="mute">Descreva o que precisa e a IA encontra os produtos</span></span></button>}
+        {me?.tipo === "e" && !q && grupos && grupos.length > 0 && <>
+          <h2>Catálogo para você</h2>
+          <p className="mute" style={{ marginTop: -6 }}>Grupos de produtos parecidos, ordenados pelas suas buscas, favoritos e compras.</p>
+          {grupos.map((g) => <div key={g.rotulo} style={{ marginBottom: 10 }}><h3 style={{ margin: "10px 0 6px" }}>{g.rotulo}</h3>{g.prods.map((p) => <Card key={"g" + p.id} p={p} />)}</div>)}
+        </>}
         <h2>Destaques para você</h2>
         {d?.length ? d.map((p: Prod) => <Card key={p.id} p={p} />) : <p className="mute">Nada encontrado. Tente outro termo ou categoria.</p>}
       </div><Nav a="feed" /></>); break;
