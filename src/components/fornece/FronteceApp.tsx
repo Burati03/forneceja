@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase as supabaseTyped } from "@/integrations/supabase/client";
+// Banco ainda não tem todas as colunas usadas aqui; cliente sem tipos até a atualização pendente ser aplicada.
+const supabase = supabaseTyped as any;
 import { useServerFn } from "@tanstack/react-start";
 import { buscarComIA } from "@/lib/busca.functions";
 import { agrupar } from "@/lib/clustering";
