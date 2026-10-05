@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useServerFn } from "@tanstack/react-start";
 import { buscarComIA } from "@/lib/busca.functions";
+import { rankCatalogClusters } from "@/lib/catalog-recommendations";
 import logoBranco from "@/assets/logo-branco.png.asset.json";
 import logoCor from "@/assets/logo-cor.png.asset.json";
 import logoEmp from "@/assets/logo-empilhado.png.asset.json";
@@ -45,7 +46,7 @@ const SAVED_EMAIL_KEY = "forneceja.saved-email";
 const HELP_COPY: Partial<Record<Scr, { title: string; paragraphs: string[] }>> = {
   splash: { title: "Como começar", paragraphs: ["Entre com seu e-mail ou crie uma conta como comprador ou fornecedor.", "Compradores encontram produtos e negociam pelo chat. Fornecedores publicam produtos e atendem pedidos."] },
   login: { title: "Ajuda para entrar", paragraphs: ["Use o mesmo e-mail cadastrado e sua senha. Confira se não há espaços no e-mail.", "Marque “Manter login” para conservar a sessão neste dispositivo; desmarque para encerrar a sessão ao fechar o navegador. O aplicativo nunca armazena sua senha."] },
-  feed: { title: "Encontrar produtos", paragraphs: ["Busque por produto, fornecedor ou cidade e use as categorias para filtrar.", "Abra os detalhes para conversar com o fornecedor ou enviar uma solicitação de negociação."] },
+  feed: { title: "Encontrar produtos", paragraphs: ["Busque por produto, fornecedor ou cidade e use as categorias para filtrar. O catálogo agrupa e prioriza itens relacionados às suas buscas e compras concluídas.", "Abra os detalhes para conversar com o fornecedor ou enviar uma solicitação de negociação."] },
   favs: { title: "Seus favoritos", paragraphs: ["Alterne entre produtos e fornecedores favoritos para encontrar seus contatos salvos.", "Os favoritos ficam associados à sua conta para você encontrá-los depois de entrar."] },
   conversas: { title: "Mensagens", paragraphs: ["Abra uma conversa para falar com comprador ou fornecedor.", "Pedidos de negociação e confirmações aparecem em cartões dentro da conversa."] },
   chat: { title: "Negociação no chat", paragraphs: ["Confira produto, quantidade, valor e mensagens da negociação.", "O fornecedor pode aceitar, recusar ou enviar uma contraproposta. O comprador responde no próprio chat."] },
@@ -96,6 +97,7 @@ export function ForneceApp() {
   const [x, setX] = useState<any>(null);
   const [cat, setCat] = useState("Todos");
   const [q, setQ] = useState("");
+  const [catalogPersonalized, setCatalogPersonalized] = useState(false);
   const [minPrice, setMinPrice] = useState("");
   const [maxPrice, setMaxPrice] = useState("");
   const [favKind, setFavKind] = useState<"produtos" | "fornecedores">("produtos");
@@ -215,6 +217,7 @@ export function ForneceApp() {
     const id = ++fresh.current;
     try {
       let data: any = null;
+      let personalizedForBuyer = false;
       const favIds = async () => {
         const { data: f, error } = await supabase.from("favoritos").select("produto_id");
         err(error);
@@ -223,13 +226,36 @@ export function ForneceApp() {
       if (s === "feed" || s === "meus" || s === "favs") {
         let qb = supabase.from("produtos").select(PSEL).order("id", { ascending: false });
         const c = opts?.cat ?? cat;
-        if (s === "feed" && c !== "Todos") qb = qb.eq("categoria", c);
         if (s === "meus" && m) qb = qb.eq("fornecedor_id", m.id);
         const { data: rows, error } = await qb; err(error);
         const fs = await favIds();
-        let list = (rows || []).filter((row) => row.ativo !== false).map(mapP).map((p) => ({ ...p, fav: fs.has(p.id) }));
+        const catalogRows = rows || [];
+        const catalog = catalogRows.map(mapP);
+        let list = catalogRows.filter((row) => row.ativo !== false)
+          .map((row) => ({ ...mapP(row), fav: fs.has(row.id) }));
         if (s === "favs") list = list.filter((p) => p.fav);
         const term = (opts?.q ?? q).trim().toLowerCase();
+        if (s === "feed" && m?.tipo === "e") {
+          const [searchResult, purchaseResult] = await Promise.all([
+            supabase.from("buscas_usuario").select("consulta").order("pesquisado_em", { ascending: false }).limit(30),
+            supabase.from("pedidos").select("produto_id").eq("empresario_id", m.id)
+              .in("status", ["Pago", "Aguardando envio", "Enviado"])
+              .order("criado_em", { ascending: false }).limit(100),
+          ]);
+          if (searchResult.error) console.error("[catalog] Could not load search history", searchResult.error);
+          if (purchaseResult.error) console.error("[catalog] Could not load purchase history", purchaseResult.error);
+          const searches = (searchResult.data || []).map((row) => row.consulta);
+          const purchasedIds = (purchaseResult.data || []).map((row) => row.produto_id);
+          personalizedForBuyer = term.length >= 3 || searches.length > 0 || purchasedIds.length > 0;
+          const rankedIds = rankCatalogClusters(
+            catalog,
+            term.length >= 3 ? [term, ...searches] : searches,
+            purchasedIds,
+          );
+          const rank = new Map(rankedIds.map((productId, index) => [productId, index]));
+          list.sort((a, b) => (rank.get(a.id) ?? Infinity) - (rank.get(b.id) ?? Infinity));
+        }
+        if (s === "feed" && c !== "Todos") list = list.filter((p) => p.categoria === c);
         if (s === "feed" && term) list = list.filter((p) => [p.nome, p.fornecedor, p.cidade || ""].some((v) => v.toLowerCase().includes(term)));
         const lowText = (opts?.minPrice ?? minPrice).replace(",", ".").trim();
         const highText = (opts?.maxPrice ?? maxPrice).replace(",", ".").trim();
@@ -370,6 +396,7 @@ export function ForneceApp() {
         data = (rows || []).map((o) => ({ avaliado: aval.has(o.id), fornecedor_id: o.produto?.fornecedor_id, id: o.id, qtd: o.qtd, status: o.status, criado_em: o.criado_em, comprador_aceitou: o.comprador_aceitou, fornecedor_aceitou: o.fornecedor_aceitou, pagamento_status: o.pagamento_status, preco_unitario: o.preco_unitario, mensagem_proposta: o.mensagem_proposta, nome: o.produto?.nome, unidade: o.produto?.unidade, cliente: o.cliente?.empresa, cliente_id: o.empresario_id }));
       }
       if (id !== fresh.current) return;
+      if (s === "feed") setCatalogPersonalized(personalizedForBuyer);
       setD(data); setX(arg); setScr(s);
     } catch (e: any) { toast(e.message || "Erro de conexão"); }
   }, [cat, favKind, maxPrice, minPrice, q]);
@@ -866,9 +893,24 @@ export function ForneceApp() {
 
   const buscar = useServerFn(buscarComIA);
   const [ia, setIa] = useState<{ texto: string; busy: boolean; resumo: string; prods: Prod[] | null }>({ texto: "", busy: false, resumo: "", prods: null });
+  async function registrarBusca(consulta: string) {
+    const user = meRef.current;
+    const normalized = consulta.trim().replace(/\s+/g, " ").toLocaleLowerCase("pt-BR");
+    if (user?.tipo !== "e" || normalized.length < 3 || normalized.length > 600) return;
+    try {
+      const { error } = await supabase.from("buscas_usuario").upsert(
+        { user_id: user.id, consulta: normalized, pesquisado_em: new Date().toISOString() },
+        { onConflict: "user_id,consulta" },
+      );
+      if (error) console.error("[catalog] Could not save search history", error);
+    } catch (error) {
+      console.error("[catalog] Could not save search history", error);
+    }
+  }
   async function buscarIA() {
     const pedido = ia.texto.trim();
     if (pedido.length < 3) return toast("Descreva o que você precisa.");
+    void registrarBusca(pedido);
     setIa((v) => ({ ...v, busy: true, prods: null, resumo: "" }));
     try {
       const res = await buscar({ data: { pedido } });
@@ -1192,7 +1234,9 @@ export function ForneceApp() {
     }
     case "feed": body = (<>
       <div className="hd"><img src={logoBranco.url} alt="Fornece Já" /><div className="header-actions"><HelpButton /><Bell /></div></div>
-      <div className="scr"><div className="top"><input style={{ margin: 0 }} placeholder="Buscar produto, fornecedor ou cidade" value={q}
+      <div className="scr"><div className="top"><input style={{ margin: 0 }} placeholder="Buscar produto, fornecedor ou cidade" value={q} maxLength={120}
+        onKeyDown={(event) => { if (event.key === "Enter") void registrarBusca(q); }}
+        onBlur={() => { void registrarBusca(q); }}
         onChange={(e) => { const v = e.target.value; setQ(v); clearTimeout(searchT.current); searchT.current = setTimeout(() => load("feed", undefined, { q: v }), 250); }} /></div>
         <div className="chips">{CATS.map((c) => <button key={c} className={"chip " + (cat === c ? "on" : "")} onClick={() => { setCat(c); load("feed", undefined, { cat: c }); }}>{c}</button>)}</div>
         <div className="price-filters">
@@ -1211,6 +1255,9 @@ export function ForneceApp() {
         </div>
         {me?.tipo === "e" && <button className="ai-cta" onClick={() => setScr("ia")}><Ic k="star" /><span><b>Busca inteligente</b><span className="mute">Descreva o que precisa e a IA encontra os produtos</span></span></button>}
         <h2>Destaques para você</h2>
+        <p className="mute">{catalogPersonalized
+          ? "Agrupamos os produtos com base nas suas buscas e compras recentes."
+          : "Explore o catálogo: as sugestões ficam mais relevantes conforme você pesquisa e compra."}</p>
         {d?.length ? d.map((p: Prod) => <Card key={p.id} p={p} />) : <p className="mute">Nada encontrado. Tente outro termo ou categoria.</p>}
       </div><Nav a="feed" /></>); break;
     case "favs": body = (<><div className="scr"><Title>Favoritos</Title>

@@ -161,6 +161,32 @@ export type Database = {
           },
         ]
       }
+      buscas_usuario: {
+        Row: {
+          pesquisado_em: string
+          consulta: string
+          user_id: string
+        }
+        Insert: {
+          pesquisado_em?: string
+          consulta: string
+          user_id: string
+        }
+        Update: {
+          pesquisado_em?: string
+          consulta?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "buscas_usuario_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       pedidos: {
         Row: {
           comprador_aceitou: boolean
