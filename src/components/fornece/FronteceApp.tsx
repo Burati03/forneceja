@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useServerFn } from "@tanstack/react-start";
 import { buscarComIA } from "@/lib/busca.functions";
 import { rankCatalogClusters } from "@/lib/catalog-recommendations";
+import { isValidPhone, normalizePhone } from "@/lib/auth-identifiers";
 import type { Database } from "@/integrations/supabase/types";
 import logoBranco from "@/assets/logo-branco.png.asset.json";
 import logoCor from "@/assets/logo-cor.png.asset.json";
@@ -1186,9 +1187,18 @@ export function ForneceApp() {
   );
 
   async function login() {
-    const email = val("em").trim().toLowerCase();
+    const identifier = val("em").trim();
     const password = val("sn");
-    if (!email.includes("@") || !password) return toast("Informe um e-mail válido e sua senha.");
+    let email = identifier.toLowerCase();
+    if (!password) return toast("Informe seu e-mail ou telefone e sua senha.");
+    if (!email.includes("@")) {
+      const phone = normalizePhone(identifier);
+      if (!isValidPhone(phone)) return toast("Informe um número de telefone válido.");
+      const { data, error } = await supabase.rpc("resolve_login_email", { _phone: phone });
+      if (error) return toast("Não foi possível identificar o e-mail deste telefone.");
+      if (!data) return toast("Nenhuma conta foi encontrada com este telefone.");
+      email = data.toLowerCase();
+    }
     setBusy(true);
     try {
       const { error } = await supabase.auth.signInWithPassword({ email, password });
@@ -2233,14 +2243,21 @@ export function ForneceApp() {
           </Back>
           <img className="lg" src={logoCor.url} alt="Fornece Já" />
           <h1>Entrar</h1>
-          <p className="mute">Use o e-mail cadastrado na sua conta.</p>
+          <p className="mute">Use o e-mail ou telefone cadastrado na sua conta.</p>
           <p className="login-explain">
             <b>Comprador</b> é quem busca produtos para comprar, seja pessoa física ou jurídica,
             indústria, loja ou empresa. <b>Fornecedor</b> divulga produtos e atende pedidos.
           </p>
           <label>
-            E-mail
-            <input id="em" type="email" autoComplete="username" defaultValue={savedEmail} />
+            E-mail ou telefone
+            <input
+              id="em"
+              type="text"
+              inputMode="email"
+              autoComplete="username"
+              placeholder="ex.: nome@empresa.com ou (11) 99999-9999"
+              defaultValue={savedEmail}
+            />
           </label>
           <Pw id="sn" label="Senha" autoComplete="current-password" onEnter={login} />
           <label className="remember-login">
