@@ -36,7 +36,8 @@ export async function sellerAccessToken(admin: SupabaseClient, profileId: string
 
   const clientId = Deno.env.get("MP_CLIENT_ID");
   const clientSecret = Deno.env.get("MP_CLIENT_SECRET");
-  if (!clientId || !clientSecret) throw new Error("A integração do Mercado Pago não está configurada.");
+  if (!clientId || !clientSecret)
+    throw new Error("A integração do Mercado Pago não está configurada.");
   const response = await fetch("https://api.mercadopago.com/oauth/token", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -48,7 +49,12 @@ export async function sellerAccessToken(admin: SupabaseClient, profileId: string
     }),
   });
   const refreshed = await response.json();
-  if (!response.ok || typeof refreshed.access_token !== "string" || typeof refreshed.refresh_token !== "string" || !(Number(refreshed.expires_in) > 0)) {
+  if (
+    !response.ok ||
+    typeof refreshed.access_token !== "string" ||
+    typeof refreshed.refresh_token !== "string" ||
+    !(Number(refreshed.expires_in) > 0)
+  ) {
     throw new Error("A conexão do fornecedor com o Mercado Pago expirou. Reconecte a conta.");
   }
 

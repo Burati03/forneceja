@@ -18,9 +18,7 @@ Deno.serve(async (req) => {
     const clientId = Deno.env.get("MP_CLIENT_ID");
     const clientSecret = Deno.env.get("MP_CLIENT_SECRET");
     if (!redirectUri || !clientId || !clientSecret) {
-      throw new Error(
-        "A integração do Mercado Pago ainda não foi configurada.",
-      );
+      throw new Error("A integração do Mercado Pago ainda não foi configurada.");
     }
 
     const admin = adminClient();
@@ -30,10 +28,7 @@ Deno.serve(async (req) => {
       .eq("state", state)
       .select("profile_id,expires_at")
       .maybeSingle();
-    if (
-      stateError || !oauthState ||
-      new Date(oauthState.expires_at).getTime() < Date.now()
-    ) {
+    if (stateError || !oauthState || new Date(oauthState.expires_at).getTime() < Date.now()) {
       throw new Error("A autorização expirou. Tente conectar novamente.");
     }
 

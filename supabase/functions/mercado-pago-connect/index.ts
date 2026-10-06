@@ -1,4 +1,9 @@
-import { adminClient, authenticatedUser, corsHeaders, jsonResponse } from "../_shared/mercado-pago.ts";
+import {
+  adminClient,
+  authenticatedUser,
+  corsHeaders,
+  jsonResponse,
+} from "../_shared/mercado-pago.ts";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
@@ -12,7 +17,10 @@ Deno.serve(async (req) => {
     const clientId = Deno.env.get("MP_CLIENT_ID");
     const redirectUri = Deno.env.get("MP_REDIRECT_URI");
     if (!clientId || !redirectUri) {
-      return jsonResponse({ error: "A integração do Mercado Pago ainda não foi configurada." }, 503);
+      return jsonResponse(
+        { error: "A integração do Mercado Pago ainda não foi configurada." },
+        503,
+      );
     }
 
     const { data: profile, error: profileError } = await admin
@@ -21,11 +29,21 @@ Deno.serve(async (req) => {
       .eq("id", user.id)
       .maybeSingle();
     if (profileError) throw new Error("Não foi possível validar o perfil.");
-    if (profile?.tipo !== "f") return jsonResponse({ error: "Somente fornecedores podem conectar uma conta de recebimento." }, 403);
+    if (profile?.tipo !== "f")
+      return jsonResponse(
+        { error: "Somente fornecedores podem conectar uma conta de recebimento." },
+        403,
+      );
 
     const stateBytes = crypto.getRandomValues(new Uint8Array(32));
-    const state = btoa(String.fromCharCode(...stateBytes)).replaceAll("+", "-").replaceAll("/", "_").replaceAll("=", "");
-    const { error: cleanupError } = await admin.from("mercado_pago_oauth_states").delete().lt("expires_at", new Date().toISOString());
+    const state = btoa(String.fromCharCode(...stateBytes))
+      .replaceAll("+", "-")
+      .replaceAll("/", "_")
+      .replaceAll("=", "");
+    const { error: cleanupError } = await admin
+      .from("mercado_pago_oauth_states")
+      .delete()
+      .lt("expires_at", new Date().toISOString());
     if (cleanupError) throw new Error("Não foi possível preparar a autorização da conta.");
     const { error: stateError } = await admin.from("mercado_pago_oauth_states").insert({
       state,
@@ -45,6 +63,9 @@ Deno.serve(async (req) => {
     return jsonResponse({ url: authUrl.toString() });
   } catch (error) {
     console.error("[mercado-pago-connect]", error);
-    return jsonResponse({ error: error instanceof Error ? error.message : "Não foi possível iniciar a conexão." }, 500);
+    return jsonResponse(
+      { error: error instanceof Error ? error.message : "Não foi possível iniciar a conexão." },
+      500,
+    );
   }
 });

@@ -16,7 +16,12 @@ function runIdFetch() {
 }
 
 export class GatewayError extends Error {
-  constructor(public status: number, message: string) { super(message); }
+  constructor(
+    public status: number,
+    message: string,
+  ) {
+    super(message);
+  }
 }
 
 /** Streams a Responses call and returns the final text. */
@@ -35,7 +40,10 @@ export async function askModel(instructions: string, messages: ModelMessage[]): 
     instructions,
     messages,
     maxRetries: 0,
-    onError: ({ error }) => { failure = error; console.error("AI gateway error", error); },
+    onError: ({ error }) => {
+      failure = error;
+      console.error("AI gateway error", error);
+    },
     providerOptions: {
       openai: {
         forceReasoning: true,
@@ -47,14 +55,27 @@ export async function askModel(instructions: string, messages: ModelMessage[]): 
     },
   });
   let text = "";
-  try { text = await result.text; } catch (e) { failure ??= e; }
+  try {
+    text = await result.text;
+  } catch (e) {
+    failure ??= e;
+  }
   if (failure) {
-    const status = (failure as any)?.statusCode ?? 500;
+    const status =
+      typeof failure === "object" &&
+      failure !== null &&
+      "statusCode" in failure &&
+      typeof failure.statusCode === "number"
+        ? failure.statusCode
+        : 500;
     const msg =
-      status === 402 ? "Os créditos de IA acabaram. Peça ao responsável pelo app para recarregar." :
-      status === 429 ? "Muitas buscas agora. Tente de novo em alguns segundos." :
-      status === 403 ? "A busca inteligente está bloqueada para este app no momento." :
-      "Não foi possível fazer a busca inteligente agora.";
+      status === 402
+        ? "Os créditos de IA acabaram. Peça ao responsável pelo app para recarregar."
+        : status === 429
+          ? "Muitas buscas agora. Tente de novo em alguns segundos."
+          : status === 403
+            ? "A busca inteligente está bloqueada para este app no momento."
+            : "Não foi possível fazer a busca inteligente agora.";
     throw new GatewayError(status, msg);
   }
   return text;

@@ -9,7 +9,10 @@ export const Route = createFileRoute("/reset-password")({
       { title: "Redefinir senha — Fornece Já" },
       { name: "description", content: "Crie uma nova senha para acessar sua conta Fornece Já." },
       { property: "og:title", content: "Redefinir senha — Fornece Já" },
-      { property: "og:description", content: "Crie uma nova senha para acessar sua conta Fornece Já." },
+      {
+        property: "og:description",
+        content: "Crie uma nova senha para acessar sua conta Fornece Já.",
+      },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
       { name: "robots", content: "noindex" },
@@ -31,9 +34,17 @@ function ResetPassword() {
     const { data: sub } = supabase.auth.onAuthStateChange((ev, session) => {
       if (ev === "PASSWORD_RECOVERY" || session) setReady(true);
     });
-    supabase.auth.getSession().then(({ data }) => { if (data.session) setReady(true); });
-    const t = setTimeout(() => setMsg((m) => m || "Abra esta página pelo link enviado ao seu e-mail."), 4000);
-    return () => { sub.subscription.unsubscribe(); clearTimeout(t); };
+    supabase.auth.getSession().then(({ data }) => {
+      if (data.session) setReady(true);
+    });
+    const t = setTimeout(
+      () => setMsg((m) => m || "Abra esta página pelo link enviado ao seu e-mail."),
+      4000,
+    );
+    return () => {
+      sub.subscription.unsubscribe();
+      clearTimeout(t);
+    };
   }, []);
 
   async function salvar() {
@@ -47,24 +58,68 @@ function ResetPassword() {
   }
 
   return (
-    <div className="fj-body"><div className="fj-app"><div className="scr">
-      <img className="lg" src={logoCor.url} alt="Fornece Já" />
-      <h1>Nova senha</h1>
-      {done ? (<>
-        <p className="mute" style={{ marginTop: 8 }}>Senha alterada! Você já está conectado.</p>
-        <a className="btn or" href="/">Ir para o aplicativo</a>
-      </>) : ready ? (<>
-        <p className="mute">Escolha uma nova senha para sua conta.</p>
-        <label>Nova senha<span className="pw-wrap"><input type={show ? "text" : "password"} autoComplete="new-password" value={s1} onChange={(e) => setS1(e.target.value)} />
-          <button type="button" className="pw-eye" onClick={() => setShow((v) => !v)}>{show ? "Ocultar" : "Mostrar"}</button></span></label>
-        <label>Repita a nova senha<span className="pw-wrap"><input type={show ? "text" : "password"} autoComplete="new-password" value={s2} onChange={(e) => setS2(e.target.value)} />
-          <button type="button" className="pw-eye" onClick={() => setShow((v) => !v)}>{show ? "Ocultar" : "Mostrar"}</button></span></label>
-        <button className="btn or" disabled={busy} onClick={salvar}>{busy ? "Salvando..." : "Salvar nova senha"}</button>
-        {msg && <p className="dm">{msg}</p>}
-      </>) : (<>
-        <p className="mute" style={{ marginTop: 8 }}>{msg || "Verificando seu link..."}</p>
-        <a className="btn ghost" href="/">Voltar</a>
-      </>)}
-    </div></div></div>
+    <div className="fj-body">
+      <div className="fj-app">
+        <div className="scr">
+          <img className="lg" src={logoCor.url} alt="Fornece Já" />
+          <h1>Nova senha</h1>
+          {done ? (
+            <>
+              <p className="mute" style={{ marginTop: 8 }}>
+                Senha alterada! Você já está conectado.
+              </p>
+              <a className="btn or" href="/">
+                Ir para o aplicativo
+              </a>
+            </>
+          ) : ready ? (
+            <>
+              <p className="mute">Escolha uma nova senha para sua conta.</p>
+              <label>
+                Nova senha
+                <span className="pw-wrap">
+                  <input
+                    type={show ? "text" : "password"}
+                    autoComplete="new-password"
+                    value={s1}
+                    onChange={(e) => setS1(e.target.value)}
+                  />
+                  <button type="button" className="pw-eye" onClick={() => setShow((v) => !v)}>
+                    {show ? "Ocultar" : "Mostrar"}
+                  </button>
+                </span>
+              </label>
+              <label>
+                Repita a nova senha
+                <span className="pw-wrap">
+                  <input
+                    type={show ? "text" : "password"}
+                    autoComplete="new-password"
+                    value={s2}
+                    onChange={(e) => setS2(e.target.value)}
+                  />
+                  <button type="button" className="pw-eye" onClick={() => setShow((v) => !v)}>
+                    {show ? "Ocultar" : "Mostrar"}
+                  </button>
+                </span>
+              </label>
+              <button className="btn or" disabled={busy} onClick={salvar}>
+                {busy ? "Salvando..." : "Salvar nova senha"}
+              </button>
+              {msg && <p className="dm">{msg}</p>}
+            </>
+          ) : (
+            <>
+              <p className="mute" style={{ marginTop: 8 }}>
+                {msg || "Verificando seu link..."}
+              </p>
+              <a className="btn ghost" href="/">
+                Voltar
+              </a>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
   );
 }

@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useServerFn } from "@tanstack/react-start";
 import { buscarComIA } from "@/lib/busca.functions";
 import { rankCatalogClusters } from "@/lib/catalog-recommendations";
+import type { Database } from "@/integrations/supabase/types";
 import logoBranco from "@/assets/logo-branco.png.asset.json";
 import logoCor from "@/assets/logo-cor.png.asset.json";
 import logoEmp from "@/assets/logo-empilhado.png.asset.json";
@@ -89,6 +90,12 @@ const CATS = [
   "Higiene",
   "Autopeças",
 ];
+const CATEGORY_ICONS: Partial<Record<string, string>> = {
+  Alimentos: "sack",
+  Roupas: "shirt",
+  Limpeza: "bottle",
+  Eletrônicos: "plug",
+};
 const brl = (n: number) => "R$ " + Number(n).toFixed(2).replace(".", ",");
 const subtotalCents = (unitPrice: number, quantity: number) =>
   Math.round(unitPrice * 100) * quantity;
@@ -336,10 +343,72 @@ type SupplierProfile = {
   descricao: string | null;
   avatar_path: string | null;
   atuacao: string | null;
-  cnpj: string | null;
-  telefone_publico: string | null;
-  endereco: string | null;
+  cnpj?: string | null;
+  telefone_publico?: string | null;
+  endereco?: string | null;
 };
+type ProductRow = Database["public"]["Tables"]["produtos"]["Row"];
+type ProductQueryRow = ProductRow & {
+  p: Pick<Database["public"]["Tables"]["profiles"]["Row"], "empresa" | "cidade"> | null;
+};
+type ProductDetails = Prod & { nota: number; nAval: number };
+type Review = {
+  id: number;
+  nota: number;
+  comentario: string | null;
+  criado_em: string;
+  autor: { empresa: string } | null;
+};
+type SupplierDetails = {
+  pf: SupplierProfile;
+  avatarUrl: string | null;
+  av: Review[];
+  nota: number;
+  prods: Prod[];
+  favoritado: boolean;
+};
+type Conversation = { id: string; empresa: string; texto: string };
+type ChatMessage = { id?: number; de_id: string; texto: string; hora: string };
+type ChatData = {
+  com: { id: string; empresa: string } | null;
+  msgs: ChatMessage[];
+  negotiations: Negotiation[];
+};
+type DashboardProduct = {
+  id: number;
+  nome: string;
+  preco: number;
+  unidade: string;
+  views: number;
+  pedidos: number;
+  vendidos: number;
+  receita: number;
+  conv: number;
+};
+type DashboardData = {
+  produtos: number;
+  views: number;
+  mensagens: number;
+  pedidos: number;
+  receita: number;
+  unidades: number;
+  st: Record<string, number>;
+  linhas: DashboardProduct[];
+  media: string;
+  nAval: number;
+};
+type ScreenData =
+  | Prod[]
+  | SupplierProfile[]
+  | ProductDetails
+  | SupplierDetails
+  | Me
+  | Conversation[]
+  | ChatData
+  | DashboardData
+  | Purchase[]
+  | null;
+type ScreenArgument = string | number | Purchase | null | undefined;
 type Scr =
   | "splash"
   | "login"
@@ -366,7 +435,7 @@ type Scr =
 const PSEL = "*, p:profiles!produtos_fornecedor_id_fkey(empresa,cidade)";
 const productPhotoUrl = (path: string | null | undefined) =>
   path ? supabase.storage.from("fotos-produtos").getPublicUrl(path).data.publicUrl : null;
-const mapP = (r: any): Prod => ({
+const mapP = (r: ProductQueryRow): Prod => ({
   ...r,
   preco: Number(r.preco),
   fornecedor: r.p?.empresa ?? "",
@@ -391,17 +460,18 @@ const Stars = ({ n, size = 16 }: { n: number; size?: number }) => (
   </span>
 );
 const media = (ns: number[]) => (ns.length ? ns.reduce((a, b) => a + b, 0) / ns.length : 0);
-const err = (e: any) => {
+const err = (e: { message: string } | null) => {
   if (e) throw new Error(e.message);
 };
+const errorMessage = (error: unknown) => (error instanceof Error ? error.message : null);
 
 export function ForneceApp() {
   const [scr, setScr] = useState<Scr>("splash");
   const [me, setMe] = useState<Me | null>(null);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [cartOwnerId, setCartOwnerId] = useState<string | null>(null);
-  const [d, setD] = useState<any>(null);
-  const [x, setX] = useState<any>(null);
+  const [d, setD] = useState<ScreenData>(null);
+  const [x, setX] = useState<ScreenArgument>(null);
   const [cat, setCat] = useState("Todos");
   const [q, setQ] = useState("");
   const [catalogPersonalized, setCatalogPersonalized] = useState(false);
@@ -572,7 +642,7 @@ export function ForneceApp() {
   const load = useCallback(
     async (
       s: Scr,
-      arg?: any,
+      arg?: ScreenArgument,
       opts?: {
         cat?: string;
         q?: string;
@@ -584,7 +654,7 @@ export function ForneceApp() {
       const m = meRef.current;
       const id = ++fresh.current;
       try {
-        let data: any = null;
+        let data: ScreenData = null;
         let personalizedForBuyer = false;
         const favIds = async () => {
           const { data: f, error } = await supabase.from("favoritos").select("produto_id");
@@ -662,12 +732,18 @@ export function ForneceApp() {
                 .select("id,empresa,categoria,cidade,descricao,avatar_path,atuacao")
                 .in("id", ids);
               err(supplierError);
-              data = suppliers || [];
+              data = (suppliers || []).map((supplier) => ({
+                ...supplier,
+                cnpj: null,
+                telefone_publico: null,
+                endereco: null,
+              }));
             }
           } else {
             data = list;
           }
         } else if (s === "det") {
+          if (typeof arg !== "number") throw new Error("Identificador de produto inválido.");
           const { data: r, error } = await supabase
             .from("produtos")
             .select(PSEL)
@@ -686,12 +762,14 @@ export function ForneceApp() {
           const notas = (av || []).map((a) => a.nota);
           data = { ...mapP(r), fav: fs.has(arg), nota: media(notas), nAval: notas.length };
         } else if (s === "forn") {
+          if (typeof arg !== "string") throw new Error("Identificador de fornecedor inválido.");
           const { data: pf, error } = await supabase
             .from("profiles")
             .select("id,empresa,categoria,cidade,descricao,avatar_path,atuacao")
             .eq("id", arg)
             .single();
           err(error);
+          if (!pf) throw new Error("Fornecedor não encontrado.");
           const { data: details, error: detailsError } = await supabase
             .from("profiles")
             .select("cnpj,telefone_publico,endereco")
@@ -721,7 +799,7 @@ export function ForneceApp() {
                   .maybeSingle()
               : { data: null, error: null };
           err(supplierFavoriteError);
-          data = {
+          const supplierDetails: SupplierDetails = {
             pf: supplierProfile,
             avatarUrl: await signedPhoto(pf?.avatar_path),
             av: av || [],
@@ -729,6 +807,7 @@ export function ForneceApp() {
             prods: (rows || []).filter((row) => row.ativo !== false).map(mapP),
             favoritado: !!supplierFavorite,
           };
+          data = supplierDetails;
         } else if (s === "perfil" && m) {
           const { data: pf, error } = await supabase
             .from("profiles")
@@ -737,6 +816,8 @@ export function ForneceApp() {
             .single();
           err(error);
           if (!pf) throw new Error("Não foi possível carregar seu perfil.");
+          if (pf.tipo !== "f" && pf.tipo !== "e") throw new Error("O tipo da conta não é válido.");
+          const accountType: Me["tipo"] = pf.tipo === "f" ? "f" : "e";
           const { data: details, error: detailsError } = await supabase
             .from("profiles")
             .select("cnpj,telefone_publico,endereco")
@@ -751,6 +832,7 @@ export function ForneceApp() {
           err(privateError);
           const profileMe = {
             ...pf,
+            tipo: accountType,
             ...(details || {}),
             email: m.email,
             cnpj:
@@ -760,8 +842,8 @@ export function ForneceApp() {
                 : null),
             telefone:
               pf.tipo === "f"
-                ? details?.telefone_publico || privateProfile?.telefone
-                : privateProfile?.telefone,
+                ? details?.telefone_publico || privateProfile?.telefone || null
+                : privateProfile?.telefone || null,
             endereco: details?.endereco || null,
           };
           setMe(profileMe as Me);
@@ -795,8 +877,9 @@ export function ForneceApp() {
             ? await supabase.from("profiles").select("id,empresa").in("id", ids)
             : { data: [] };
           const nm = new Map((ps || []).map((p) => [p.id, p.empresa]));
-          data = ids.map((i) => ({ id: i, empresa: nm.get(i) || "—", texto: seen.get(i) }));
+          data = ids.map((i) => ({ id: i, empresa: nm.get(i) || "—", texto: seen.get(i) || "" }));
         } else if (s === "chat" && m) {
+          if (typeof arg !== "string") throw new Error("Identificador de conversa inválido.");
           const { data: com } = await supabase
             .from("profiles")
             .select("id,empresa")
@@ -859,7 +942,7 @@ export function ForneceApp() {
                 .from("pedidos")
                 .select("produto_id,qtd,status,preco_unitario")
                 .in("produto_id", ids)
-            : { data: [] as any[] };
+            : { data: [] };
           const { data: avs } = await supabase
             .from("avaliacoes")
             .select("nota")
@@ -877,11 +960,11 @@ export function ForneceApp() {
             unidades = 0;
           const linhas = (ps || [])
             .map((p) => {
-              const meus = (pds || []).filter((o: any) => o.produto_id === p.id);
-              const pedidosEnviados = meus.filter((o: any) => o.status === "Enviado");
-              const vend = pedidosEnviados.reduce((a: number, o: any) => a + o.qtd, 0);
+              const meus = (pds || []).filter((o) => o.produto_id === p.id);
+              const pedidosEnviados = meus.filter((o) => o.status === "Enviado");
+              const vend = pedidosEnviados.reduce((a, o) => a + o.qtd, 0);
               const rec = pedidosEnviados.reduce(
-                (a: number, o: any) => a + o.qtd * Number(o.preco_unitario || p.preco),
+                (a, o) => a + o.qtd * Number(o.preco_unitario || p.preco),
                 0,
               );
               receita += rec;
@@ -895,7 +978,7 @@ export function ForneceApp() {
               };
             })
             .sort((a, b) => b.receita - a.receita || b.views - a.views);
-          (pds || []).forEach((o: any) => {
+          (pds || []).forEach((o) => {
             st[o.status] = (st[o.status] || 0) + 1;
           });
           const notas = (avs || []).map((a) => a.nota);
@@ -948,14 +1031,14 @@ export function ForneceApp() {
         setD(data);
         setX(arg);
         setScr(s);
-      } catch (e: any) {
-        toast(e.message || "Erro de conexão");
+      } catch (error) {
+        toast(errorMessage(error) || "Erro de conexão");
       }
     },
     [cat, favKind, maxPrice, minPrice, q],
   );
 
-  const go = (s: Scr, arg?: any) => load(s, arg);
+  const go = (s: Scr, arg?: ScreenArgument) => load(s, arg);
   const home = (m = me) => {
     if (m) {
       meRef.current = m;
@@ -976,31 +1059,32 @@ export function ForneceApp() {
     err(profileError);
     let p = profile;
     if (!p) {
-      const md: any = user.user_metadata || {};
-      if (!md.tipo) return null;
+      const metadata = user.user_metadata;
+      const metadataString = (key: string): string | null =>
+        typeof metadata[key] === "string" ? metadata[key] : null;
+      const tipo = metadataString("tipo");
+      if (tipo !== "f" && tipo !== "e") return null;
       const ins = {
         id: user.id,
-        tipo: md.tipo,
-        empresa: md.empresa || user.email || "Minha empresa",
+        tipo,
+        empresa: metadataString("empresa") || user.email || "Minha empresa",
         email: user.email ?? null,
-        categoria: md.categoria || null,
-        cidade: md.cidade || null,
-        atuacao: md.atuacao || null,
+        categoria: metadataString("categoria"),
+        cidade: metadataString("cidade"),
+        atuacao: metadataString("atuacao"),
         descricao: null,
         avatar_path: null,
       };
       const { error } = await supabase.from("profiles").insert(ins);
       if (error) throw new Error(error.message);
-      const { error: privateInsertError } = await supabase
-        .from("profiles_private")
-        .insert({
-          id: user.id,
-          documento: md.documento || null,
-          documento_tipo: md.documento_tipo || "cnpj",
-          telefone: md.telefone || null,
-        });
+      const { error: privateInsertError } = await supabase.from("profiles_private").insert({
+        id: user.id,
+        documento: metadataString("documento"),
+        documento_tipo: metadataString("documento_tipo") || "cnpj",
+        telefone: metadataString("telefone"),
+      });
       if (privateInsertError) throw new Error(privateInsertError.message);
-      p = ins as any;
+      p = ins;
     }
     if (!p) throw new Error("Não foi possível carregar seu perfil.");
     const { data: privateProfile, error: privateError } = await supabase
@@ -1057,7 +1141,6 @@ export function ForneceApp() {
       toast("Pagamento pendente. A confirmação será atualizada pelo Mercado Pago.");
     else toast("Não foi possível concluir a operação do Mercado Pago.");
     window.history.replaceState({}, "", window.location.pathname);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const val = (id: string) => (document.getElementById(id) as HTMLInputElement | null)?.value || "";
@@ -1224,18 +1307,22 @@ export function ForneceApp() {
   async function fav(id: number) {
     if (!me) return;
     if (me.tipo !== "e") return toast("Favoritos estão disponíveis para contas compradoras.");
-    const result = d?.fav
+    const productDetails = d as ProductDetails;
+    const wasFavorited = !!productDetails.fav;
+    const result = wasFavorited
       ? await supabase.from("favoritos").delete().eq("produto_id", id).eq("user_id", me.id)
       : await supabase.from("favoritos").insert({ user_id: me.id, produto_id: id });
     if (result.error) return toast("Não foi possível atualizar seus favoritos.");
-    setD({ ...d, fav: !d.fav });
-    toast(d.fav ? "Removido dos favoritos" : "Salvo nos favoritos");
+    setD({ ...productDetails, fav: !wasFavorited });
+    toast(wasFavorited ? "Removido dos favoritos" : "Salvo nos favoritos");
   }
 
   async function favFornecedor(id: string, currentlyFavorited?: boolean) {
     if (!me || me.tipo !== "e")
       return toast("Favoritos estão disponíveis para contas compradoras.");
-    const favoritado = currentlyFavorited ?? (scr === "forn" && x === id && d?.favoritado);
+    const supplierDetails = d as SupplierDetails;
+    const favoritado =
+      currentlyFavorited ?? (scr === "forn" && x === id && supplierDetails.favoritado);
     const result = favoritado
       ? await supabase
           .from("fornecedores_favoritos")
@@ -1246,7 +1333,7 @@ export function ForneceApp() {
           .from("fornecedores_favoritos")
           .insert({ comprador_id: me.id, fornecedor_id: id });
     if (result.error) return toast("Não foi possível atualizar seus fornecedores favoritos.");
-    if (scr === "forn" && x === id) setD({ ...d, favoritado: !favoritado });
+    if (scr === "forn" && x === id) setD({ ...supplierDetails, favoritado: !favoritado });
     toast(favoritado ? "Fornecedor removido dos favoritos." : "Fornecedor salvo nos favoritos.");
   }
 
@@ -1558,7 +1645,7 @@ export function ForneceApp() {
   async function snd() {
     const el = document.getElementById("mi") as HTMLInputElement;
     const t = el.value.trim();
-    if (!t || !me) return;
+    if (!t || !me || typeof x !== "string") return;
     const { error } = await supabase
       .from("mensagens")
       .insert({ de_id: me.id, para_id: x, texto: t });
@@ -1587,10 +1674,7 @@ export function ForneceApp() {
     if (!productPhoto && !productDraft?.imagem_path)
       return toast("Adicione uma imagem para o produto.");
     const categoria = val("n4");
-    const icone =
-      ({ Alimentos: "sack", Roupas: "shirt", Limpeza: "bottle", Eletrônicos: "plug" } as any)[
-        categoria
-      ] || "box";
+    const icone = CATEGORY_ICONS[categoria] || "box";
     setBusy(true);
     let newPhotoPath: string | null = null;
     try {
@@ -1735,7 +1819,7 @@ export function ForneceApp() {
       let prods: Prod[] = [];
       if (res.ids.length) {
         const { data: rows } = await supabase.from("produtos").select(PSEL).in("id", res.ids);
-        const byId = new Map((rows || []).map((r: any) => [r.id, mapP(r)]));
+        const byId = new Map((rows || []).map((row) => [row.id, mapP(row)]));
         prods = res.ids
           .map((i) => byId.get(i))
           .filter((product): product is Prod => !!product && product.ativo !== false);
@@ -1762,18 +1846,17 @@ export function ForneceApp() {
 
   const [nota, setNota] = useState(0);
   async function enviarAvaliacao() {
-    if (!me || !x) return;
+    if (!me || typeof x !== "object" || x === null || !("id" in x) || !("fornecedor_id" in x))
+      return;
     if (!nota) return toast("Escolha de 1 a 5 estrelas.");
     const comentario = val("ac").trim() || null;
-    const { error } = await supabase
-      .from("avaliacoes")
-      .insert({
-        pedido_id: x.id,
-        fornecedor_id: x.fornecedor_id,
-        empresario_id: me.id,
-        nota,
-        comentario,
-      });
+    const { error } = await supabase.from("avaliacoes").insert({
+      pedido_id: x.id,
+      fornecedor_id: x.fornecedor_id,
+      empresario_id: me.id,
+      nota,
+      comentario,
+    });
     if (error)
       return toast(
         error.code === "23505"
@@ -1852,17 +1935,15 @@ export function ForneceApp() {
           throw new Error(extraFieldsError.message);
         extraProfileFieldsSaved = !extraFieldsError;
 
-        const { error: privateUpdateError } = await supabase
-          .from("profiles_private")
-          .upsert(
-            {
-              id: me.id,
-              documento: cnpj,
-              documento_tipo: "cnpj",
-              telefone: form.telefone.trim() || null,
-            },
-            { onConflict: "id" },
-          );
+        const { error: privateUpdateError } = await supabase.from("profiles_private").upsert(
+          {
+            id: me.id,
+            documento: cnpj,
+            documento_tipo: "cnpj",
+            telefone: form.telefone.trim() || null,
+          },
+          { onConflict: "id" },
+        );
         err(privateUpdateError);
       } else {
         const { error: privateUpdateError } = await supabase
@@ -1897,9 +1978,9 @@ export function ForneceApp() {
             : "Perfil atualizado!",
         );
       }
-    } catch (e: any) {
+    } catch (error) {
       if (novoPath) await supabase.storage.from("fotos-perfil").remove([novoPath]);
-      toast(e.message || "Não foi possível salvar o perfil.");
+      toast(errorMessage(error) || "Não foi possível salvar o perfil.");
     } finally {
       setBusy(false);
     }
@@ -2112,9 +2193,11 @@ export function ForneceApp() {
       )}
     </div>
   );
-  const searchT = useRef<any>(null);
+  const searchT = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
-  const chatNegotiations = (d?.negotiations || []) as Negotiation[];
+  const chatData =
+    d && !Array.isArray(d) && "negotiations" in d ? d : { com: null, msgs: [], negotiations: [] };
+  const chatNegotiations = chatData.negotiations;
   let body: React.ReactNode = null;
   switch (scr) {
     case "splash":
@@ -2257,7 +2340,8 @@ export function ForneceApp() {
       );
       break;
     case "forn": {
-      const own = me?.id === d.pf.id;
+      const supplier = d as SupplierDetails;
+      const own = me?.id === supplier.pf.id;
       body = (
         <>
           <div className="scr">
@@ -2265,37 +2349,44 @@ export function ForneceApp() {
               <HelpButton />
             </Back>
             <div className="profile-summary">
-              <Avatar url={d.avatarUrl} name={d.pf.empresa} />
+              <Avatar url={supplier.avatarUrl} name={supplier.pf.empresa} />
               <div>
-                <h1>{d.pf.empresa}</h1>
+                <h1>{supplier.pf.empresa}</h1>
                 <p className="mute">
-                  {[d.pf.atuacao, d.pf.categoria, d.pf.cidade].filter(Boolean).join(" · ")}
+                  {[supplier.pf.atuacao, supplier.pf.categoria, supplier.pf.cidade]
+                    .filter(Boolean)
+                    .join(" · ")}
                 </p>
               </div>
             </div>
-            {d.pf.descricao && <p className="profile-description">{d.pf.descricao}</p>}
+            {supplier.pf.descricao && (
+              <p className="profile-description">{supplier.pf.descricao}</p>
+            )}
             {!own && me?.tipo === "e" && (
-              <button className="btn ghost" onClick={() => favFornecedor(d.pf.id, d.favoritado)}>
-                <Ic k="heart" f={d.favoritado} />
-                {d.favoritado ? "Remover fornecedor dos favoritos" : "Favoritar fornecedor"}
+              <button
+                className="btn ghost"
+                onClick={() => favFornecedor(supplier.pf.id, supplier.favoritado)}
+              >
+                <Ic k="heart" f={supplier.favoritado} />
+                {supplier.favoritado ? "Remover fornecedor dos favoritos" : "Favoritar fornecedor"}
               </button>
             )}
-            {d.pf.cnpj && (
+            {supplier.pf.cnpj && (
               <div className="row">
                 <span>CNPJ</span>
-                <b>{d.pf.cnpj}</b>
+                <b>{supplier.pf.cnpj}</b>
               </div>
             )}
-            {d.pf.telefone_publico && (
+            {supplier.pf.telefone_publico && (
               <div className="row">
                 <span>Telefone</span>
-                <b>{d.pf.telefone_publico}</b>
+                <b>{supplier.pf.telefone_publico}</b>
               </div>
             )}
-            {d.pf.endereco && (
+            {supplier.pf.endereco && (
               <div className="row">
                 <span>Endereço</span>
-                <b>{d.pf.endereco}</b>
+                <b>{supplier.pf.endereco}</b>
               </div>
             )}
             {own && (
@@ -2305,19 +2396,19 @@ export function ForneceApp() {
               </button>
             )}
             <div className="rating-box">
-              <b>{d.av.length ? d.nota.toFixed(1) : "—"}</b>
+              <b>{supplier.av.length ? supplier.nota.toFixed(1) : "—"}</b>
               <div>
-                <Stars n={d.nota} size={20} />
+                <Stars n={supplier.nota} size={20} />
                 <div className="mute">
-                  {d.av.length
-                    ? `${d.av.length} avaliaç${d.av.length === 1 ? "ão" : "ões"}`
+                  {supplier.av.length
+                    ? `${supplier.av.length} avaliaç${supplier.av.length === 1 ? "ão" : "ões"}`
                     : "Ainda sem avaliações"}
                 </div>
               </div>
             </div>
             <h2>Comentários</h2>
-            {d.av.length ? (
-              d.av.map((a: any) => (
+            {supplier.av.length ? (
+              supplier.av.map((a) => (
                 <div key={a.id} className="pc" style={{ display: "block" }}>
                   <Stars n={a.nota} />
                   <div className="nm" style={{ fontSize: 14, marginTop: 4 }}>
@@ -2333,8 +2424,8 @@ export function ForneceApp() {
               <p className="mute">Nenhum comentário ainda.</p>
             )}
             <h2>Produtos</h2>
-            {d.prods.length ? (
-              d.prods.map((p: Prod) => <Card key={p.id} p={p} />)
+            {supplier.prods.length ? (
+              supplier.prods.map((p) => <Card key={p.id} p={p} />)
             ) : (
               <p className="mute">Sem produtos publicados.</p>
             )}
@@ -2344,13 +2435,14 @@ export function ForneceApp() {
       );
       break;
     }
-    case "avaliar":
+    case "avaliar": {
+      const purchase = x as Purchase;
       body = (
         <div className="scr">
           <Back to={() => go("pedidos")} />
           <h1>Avaliar pedido</h1>
           <p className="mute">
-            {x.qtd} {pl(x.qtd, x.unidade)} de {x.nome}
+            {purchase.qtd} {pl(purchase.qtd, purchase.unidade)} de {purchase.nome}
           </p>
           <label>Sua nota</label>
           <div className="star-pick" role="radiogroup" aria-label="Nota">
@@ -2384,6 +2476,7 @@ export function ForneceApp() {
         </div>
       );
       break;
+    }
     case "tipo":
       body = (
         <div className="scr">
@@ -2624,8 +2717,8 @@ export function ForneceApp() {
                 ? "Agrupamos os produtos com base nas suas buscas e compras recentes."
                 : "Explore o catálogo: as sugestões ficam mais relevantes conforme você pesquisa e compra."}
             </p>
-            {d?.length ? (
-              d.map((p: Prod) => <Card key={p.id} p={p} />)
+            {(d as Prod[] | null)?.length ? (
+              (d as Prod[]).map((p) => <Card key={p.id} p={p} />)
             ) : (
               <p className="mute">Nada encontrado. Tente outro termo ou categoria.</p>
             )}
@@ -2664,15 +2757,15 @@ export function ForneceApp() {
               </button>
             </div>
             {favKind === "produtos" ? (
-              d?.length ? (
-                d.map((p: Prod) => <Card key={p.id} p={p} />)
+              (d as Prod[] | null)?.length ? (
+                (d as Prod[]).map((p) => <Card key={p.id} p={p} />)
               ) : (
                 <p className="mute" style={{ marginTop: 12 }}>
                   Toque no coração nos detalhes de um produto para salvá-lo aqui.
                 </p>
               )
-            ) : d?.length ? (
-              d.map((supplier: SupplierProfile) => (
+            ) : (d as SupplierProfile[] | null)?.length ? (
+              (d as SupplierProfile[]).map((supplier) => (
                 <div key={supplier.id} className="menu supplier-favorite">
                   <button onClick={() => go("forn", supplier.id)}>
                     <b>{supplier.empresa}</b>
@@ -2704,7 +2797,7 @@ export function ForneceApp() {
       );
       break;
     case "det": {
-      const p = d as Prod,
+      const p = d as ProductDetails,
         mine = me?.tipo === "f";
       body = (
         <div className="scr">
@@ -2727,10 +2820,8 @@ export function ForneceApp() {
               Fornecedor: <b>{p.fornecedor}</b>
             </span>
             <span className="forn-rate">
-              <Stars n={(d as any).nota} />
-              {(d as any).nAval
-                ? ` ${(d as any).nota.toFixed(1)} (${(d as any).nAval})`
-                : " Sem avaliações"}
+              <Stars n={p.nota} />
+              {p.nAval ? ` ${p.nota.toFixed(1)} (${p.nAval})` : " Sem avaliações"}
             </span>
           </button>
           <div className="row">
@@ -2908,8 +2999,8 @@ export function ForneceApp() {
         <>
           <div className="scr">
             <Title>Mensagens</Title>
-            {d?.length ? (
-              d.map((c: any) => (
+            {(d as Conversation[] | null)?.length ? (
+              (d as Conversation[]).map((c) => (
                 <button
                   key={c.id}
                   className="menu"
@@ -2945,7 +3036,7 @@ export function ForneceApp() {
             <button className="ib" aria-label="Voltar" onClick={() => go("conversas")}>
               <Ic k="back" />
             </button>
-            <b>{d.com?.empresa}</b>
+            <b>{chatData.com?.empresa}</b>
           </div>
           <div className="scr">
             <div className="chat">
@@ -3128,15 +3219,15 @@ export function ForneceApp() {
                   </article>
                 );
               })}
-              {d.msgs.length
-                ? d.msgs.map((m: any, i: number) => (
+              {chatData.msgs.length
+                ? chatData.msgs.map((m, i) => (
                     <div key={m.id ?? i} className={"m " + (m.de_id === me?.id ? "me" : "")}>
-                      <b>{m.de_id === me?.id ? "Você" : d.com?.empresa}</b>
+                      <b>{m.de_id === me?.id ? "Você" : chatData.com?.empresa}</b>
                       {m.texto}
                       <small>{m.hora}</small>
                     </div>
                   ))
-                : !d.negotiations?.length && (
+                : !chatData.negotiations.length && (
                     <p className="mute">Diga olá para começar a conversa.</p>
                   )}
             </div>
@@ -3154,7 +3245,8 @@ export function ForneceApp() {
         </>
       );
       break;
-    case "painel":
+    case "painel": {
+      const dashboard = d as DashboardData;
       body = (
         <>
           <div className="hd">
@@ -3170,33 +3262,35 @@ export function ForneceApp() {
             <h3 style={{ marginTop: 14 }}>Painel de administração</h3>
             <div className="grid" style={{ marginTop: 8 }}>
               <div className="kpi">
-                <b>{d.produtos}</b>Produtos ativos
+                <b>{dashboard.produtos}</b>Produtos ativos
               </div>
               <div className="kpi">
-                <b>{d.views}</b>Visualizações
+                <b>{dashboard.views}</b>Visualizações
               </div>
               <div className="kpi">
-                <b>{d.pedidos}</b>Pedidos recebidos
+                <b>{dashboard.pedidos}</b>Pedidos recebidos
               </div>
               <div className="kpi">
-                <b>{d.mensagens}</b>Mensagens
+                <b>{dashboard.mensagens}</b>Mensagens
               </div>
               <div className="kpi">
-                <b>{brl(d.receita || 0)}</b>Vendas concluídas
+                <b>{brl(dashboard.receita || 0)}</b>Vendas concluídas
               </div>
               <div className="kpi">
-                <b>{d.unidades}</b>Unidades vendidas
+                <b>{dashboard.unidades}</b>Unidades vendidas
               </div>
               <div className="kpi">
-                <b>{d.media}</b>Nota média ({d.nAval})
+                <b>{dashboard.media}</b>Nota média ({dashboard.nAval})
               </div>
               <div className="kpi">
-                <b>{d.views ? Math.round((d.pedidos / d.views) * 100) : 0}%</b>Conversão
+                <b>
+                  {dashboard.views ? Math.round((dashboard.pedidos / dashboard.views) * 100) : 0}%
+                </b>
               </div>
             </div>
             <h3 style={{ marginTop: 14 }}>Pedidos por status</h3>
             <div className="grid" style={{ marginTop: 8 }}>
-              {Object.entries(d.st || {}).map(([k, v]) => (
+              {Object.entries(dashboard.st).map(([k, v]) => (
                 <div key={k} className="kpi">
                   <b>{v as number}</b>
                   {k}
@@ -3204,7 +3298,7 @@ export function ForneceApp() {
               ))}
             </div>
             <h3 style={{ marginTop: 14 }}>Desempenho por produto</h3>
-            {(d.linhas || []).length === 0 ? (
+            {dashboard.linhas.length === 0 ? (
               <p className="mute">Nenhum produto cadastrado ainda.</p>
             ) : (
               <div style={{ overflowX: "auto", marginTop: 8 }}>
@@ -3221,7 +3315,7 @@ export function ForneceApp() {
                     </tr>
                   </thead>
                   <tbody>
-                    {d.linhas.map((p: any) => (
+                    {dashboard.linhas.map((p) => (
                       <tr key={p.id}>
                         <td>{p.nome}</td>
                         <td>{brl(Number(p.preco))}</td>
@@ -3260,13 +3354,14 @@ export function ForneceApp() {
         </>
       );
       break;
+    }
     case "meus":
       body = (
         <>
           <div className="scr">
             <Title>Meus produtos</Title>
-            {d?.length ? (
-              d.map((p: Prod) => <Card key={p.id} p={p} />)
+            {(d as Prod[] | null)?.length ? (
+              (d as Prod[]).map((p) => <Card key={p.id} p={p} />)
             ) : (
               <p className="mute" style={{ marginTop: 12 }}>
                 Você ainda não publicou produtos.
