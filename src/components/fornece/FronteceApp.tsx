@@ -70,8 +70,8 @@ function cpfValido(v: string) {
   const d = v.replace(/\D/g, "");
   if (d.length !== 11 || /^(\d)\1+$/.test(d)) return false;
   for (const n of [9, 10]) {
-    let t = 0; for (let i = 0; i < n; i++) t += +d[i] * (n + 1 - i);
-    if (((t * 10) % 11) % 10 !== +d[n]) return false;
+    let t = 0; for (let i = 0; i < n; i++) t += +d[i]! * (n + 1 - i);
+    if (((t * 10) % 11) % 10 !== +d[n]!) return false;
   }
   return true;
 }
@@ -80,9 +80,9 @@ function cnpjValido(v: string) {
   if (d.length !== 14 || /^(\d)\1+$/.test(d)) return false;
   for (const n of [12, 13]) {
     const w = n === 12 ? [5,4,3,2,9,8,7,6,5,4,3,2] : [6,5,4,3,2,9,8,7,6,5,4,3,2];
-    let t = 0; for (let i = 0; i < n; i++) t += +d[i] * w[i];
+    let t = 0; for (let i = 0; i < n; i++) t += +d[i]! * w[i]!;
     const r = t % 11 < 2 ? 0 : 11 - (t % 11);
-    if (r !== +d[n]) return false;
+    if (r !== +d[n]!) return false;
   }
   return true;
 }
