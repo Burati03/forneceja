@@ -160,6 +160,13 @@ const HELP_COPY: Partial<Record<Scr, { title: string; paragraphs: string[] }>> =
       "Fornecedores podem conectar o Mercado Pago para receber pagamentos. Compradores podem revisar pedidos e favoritos.",
     ],
   },
+  usuarios: {
+    title: "Perfis dos usuários",
+    paragraphs: [
+      "Consulte os perfis públicos de compradores e fornecedores cadastrados no app.",
+      "E-mail, documento e telefone privado não são exibidos nesta lista.",
+    ],
+  },
   editar: {
     title: "Editar perfil",
     paragraphs: [
@@ -338,12 +345,14 @@ type Notification = {
 };
 type SupplierProfile = {
   id: string;
+  tipo: "f" | "e";
   empresa: string;
   categoria: string | null;
   cidade: string | null;
   descricao: string | null;
   avatar_path: string | null;
   atuacao: string | null;
+  avatarUrl?: string | null;
   cnpj?: string | null;
   telefone_publico?: string | null;
   endereco?: string | null;
@@ -424,6 +433,7 @@ type Scr =
   | "painel"
   | "pedidos"
   | "perfil"
+  | "usuarios"
   | "editar"
   | "novo"
   | "esqueci"
@@ -735,6 +745,7 @@ export function ForneceApp() {
               err(supplierError);
               data = (suppliers || []).map((supplier) => ({
                 ...supplier,
+                tipo: "f" as const,
                 cnpj: null,
                 telefone_publico: null,
                 endereco: null,
@@ -762,22 +773,42 @@ export function ForneceApp() {
             .eq("fornecedor_id", r!.fornecedor_id);
           const notas = (av || []).map((a) => a.nota);
           data = { ...mapP(r), fav: fs.has(arg), nota: media(notas), nAval: notas.length };
+        } else if (s === "usuarios") {
+          const { data: profiles, error } = await supabase
+            .from("profiles")
+            .select("id,tipo,empresa,categoria,cidade,descricao,avatar_path,atuacao")
+            .order("empresa");
+          err(error);
+          data = await Promise.all(
+            (profiles || []).map(async (profile) => ({
+              ...profile,
+              tipo: profile.tipo === "f" ? ("f" as const) : ("e" as const),
+              avatarUrl: await signedPhoto(profile.avatar_path),
+            })),
+          );
         } else if (s === "forn") {
           if (typeof arg !== "string") throw new Error("Identificador de fornecedor inválido.");
           const { data: pf, error } = await supabase
             .from("profiles")
-            .select("id,empresa,categoria,cidade,descricao,avatar_path,atuacao")
+            .select("id,tipo,empresa,categoria,cidade,descricao,avatar_path,atuacao")
             .eq("id", arg)
             .single();
           err(error);
           if (!pf) throw new Error("Fornecedor não encontrado.");
-          const { data: details, error: detailsError } = await supabase
-            .from("profiles")
-            .select("cnpj,telefone_publico,endereco")
-            .eq("id", arg)
-            .maybeSingle();
+          const { data: details, error: detailsError } =
+            pf.tipo === "f"
+              ? await supabase
+                  .from("profiles")
+                  .select("cnpj,telefone_publico,endereco")
+                  .eq("id", arg)
+                  .maybeSingle()
+              : { data: null, error: null };
           if (detailsError && !isMissingColumnError(detailsError)) err(detailsError);
-          const supplierProfile = { ...pf, ...(details || {}) };
+          const supplierProfile = {
+            ...pf,
+            tipo: pf.tipo === "f" ? ("f" as const) : ("e" as const),
+            ...(details || {}),
+          };
           const { data: av } = await supabase
             .from("avaliacoes")
             .select(
@@ -792,7 +823,7 @@ export function ForneceApp() {
             .order("id", { ascending: false });
           err(productError);
           const { data: supplierFavorite, error: supplierFavoriteError } =
-            m?.tipo === "e"
+            m?.tipo === "e" && pf.tipo === "f"
               ? await supabase
                   .from("fornecedores_favoritos")
                   .select("fornecedor_id")
@@ -2356,6 +2387,44 @@ export function ForneceApp() {
         </>
       );
       break;
+    case "usuarios": {
+      const profiles = d as SupplierProfile[] | null;
+      body = (
+        <>
+          <div className="scr">
+            <Back to={() => go("perfil")}>
+              <HelpButton />
+            </Back>
+            <h1>Perfis dos usuários</h1>
+            {profiles?.length ? (
+              profiles.map((profile) => (
+                <button
+                  key={profile.id}
+                  className="menu user-profile"
+                  onClick={() => go("forn", profile.id)}
+                >
+                  <Avatar url={profile.avatarUrl ?? null} name={profile.empresa} />
+                  <span>
+                    <b>{profile.empresa}</b>
+                    <span className="mute">
+                      {profile.tipo === "f" ? "Fornecedor" : "Comprador"}
+                      {[profile.atuacao, profile.categoria, profile.cidade]
+                        .filter(Boolean)
+                        .map((value) => ` · ${value}`)
+                        .join("")}
+                    </span>
+                  </span>
+                </button>
+              ))
+            ) : (
+              <p className="mute">Nenhum perfil encontrado.</p>
+            )}
+          </div>
+          <Nav a="perfil" />
+        </>
+      );
+      break;
+    }
     case "forn": {
       const supplier = d as SupplierDetails;
       const own = me?.id === supplier.pf.id;
@@ -2370,7 +2439,12 @@ export function ForneceApp() {
               <div>
                 <h1>{supplier.pf.empresa}</h1>
                 <p className="mute">
-                  {[supplier.pf.atuacao, supplier.pf.categoria, supplier.pf.cidade]
+                  {[
+                    supplier.pf.tipo === "f" ? "Fornecedor" : "Comprador",
+                    supplier.pf.atuacao,
+                    supplier.pf.categoria,
+                    supplier.pf.cidade,
+                  ]
                     .filter(Boolean)
                     .join(" · ")}
                 </p>
@@ -2379,7 +2453,7 @@ export function ForneceApp() {
             {supplier.pf.descricao && (
               <p className="profile-description">{supplier.pf.descricao}</p>
             )}
-            {!own && me?.tipo === "e" && (
+            {!own && me?.tipo === "e" && supplier.pf.tipo === "f" && (
               <button
                 className="btn ghost"
                 onClick={() => favFornecedor(supplier.pf.id, supplier.favoritado)}
@@ -2388,19 +2462,19 @@ export function ForneceApp() {
                 {supplier.favoritado ? "Remover fornecedor dos favoritos" : "Favoritar fornecedor"}
               </button>
             )}
-            {supplier.pf.cnpj && (
+            {supplier.pf.tipo === "f" && supplier.pf.cnpj && (
               <div className="row">
                 <span>CNPJ</span>
                 <b>{supplier.pf.cnpj}</b>
               </div>
             )}
-            {supplier.pf.telefone_publico && (
+            {supplier.pf.tipo === "f" && supplier.pf.telefone_publico && (
               <div className="row">
                 <span>Telefone</span>
                 <b>{supplier.pf.telefone_publico}</b>
               </div>
             )}
-            {supplier.pf.endereco && (
+            {supplier.pf.tipo === "f" && supplier.pf.endereco && (
               <div className="row">
                 <span>Endereço</span>
                 <b>{supplier.pf.endereco}</b>
@@ -2412,39 +2486,43 @@ export function ForneceApp() {
                 Editar perfil
               </button>
             )}
-            <div className="rating-box">
-              <b>{supplier.av.length ? supplier.nota.toFixed(1) : "—"}</b>
-              <div>
-                <Stars n={supplier.nota} size={20} />
-                <div className="mute">
-                  {supplier.av.length
-                    ? `${supplier.av.length} avaliaç${supplier.av.length === 1 ? "ão" : "ões"}`
-                    : "Ainda sem avaliações"}
-                </div>
-              </div>
-            </div>
-            <h2>Comentários</h2>
-            {supplier.av.length ? (
-              supplier.av.map((a) => (
-                <div key={a.id} className="pc" style={{ display: "block" }}>
-                  <Stars n={a.nota} />
-                  <div className="nm" style={{ fontSize: 14, marginTop: 4 }}>
-                    {a.autor?.empresa ?? "Comprador"}
-                  </div>
-                  {a.comentario && <p style={{ marginTop: 4 }}>{a.comentario}</p>}
-                  <div className="mute" style={{ fontSize: 12, marginTop: 4 }}>
-                    {new Date(a.criado_em).toLocaleDateString("pt-BR")}
+            {supplier.pf.tipo === "f" && (
+              <>
+                <div className="rating-box">
+                  <b>{supplier.av.length ? supplier.nota.toFixed(1) : "—"}</b>
+                  <div>
+                    <Stars n={supplier.nota} size={20} />
+                    <div className="mute">
+                      {supplier.av.length
+                        ? `${supplier.av.length} avaliaç${supplier.av.length === 1 ? "ão" : "ões"}`
+                        : "Ainda sem avaliações"}
+                    </div>
                   </div>
                 </div>
-              ))
-            ) : (
-              <p className="mute">Nenhum comentário ainda.</p>
-            )}
-            <h2>Produtos</h2>
-            {supplier.prods.length ? (
-              supplier.prods.map((p) => <Card key={p.id} p={p} />)
-            ) : (
-              <p className="mute">Sem produtos publicados.</p>
+                <h2>Comentários</h2>
+                {supplier.av.length ? (
+                  supplier.av.map((a) => (
+                    <div key={a.id} className="pc" style={{ display: "block" }}>
+                      <Stars n={a.nota} />
+                      <div className="nm" style={{ fontSize: 14, marginTop: 4 }}>
+                        {a.autor?.empresa ?? "Comprador"}
+                      </div>
+                      {a.comentario && <p style={{ marginTop: 4 }}>{a.comentario}</p>}
+                      <div className="mute" style={{ fontSize: 12, marginTop: 4 }}>
+                        {new Date(a.criado_em).toLocaleDateString("pt-BR")}
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <p className="mute">Nenhum comentário ainda.</p>
+                )}
+                <h2>Produtos</h2>
+                {supplier.prods.length ? (
+                  supplier.prods.map((p) => <Card key={p.id} p={p} />)
+                ) : (
+                  <p className="mute">Sem produtos publicados.</p>
+                )}
+              </>
             )}
           </div>
           <Nav a={own ? "perfil" : "feed"} />
@@ -2502,7 +2580,14 @@ export function ForneceApp() {
           </Back>
           <h1>Criar conta</h1>
           <p className="mute">Selecione o tipo de conta</p>
-          <button className={"opt " + (role === "f" ? "sel" : "")} onClick={() => setRole("f")}>
+          <button
+            className={"opt " + (role === "f" ? "sel" : "")}
+            onClick={() => {
+              setRole("f");
+              setDocTipo("cnpj");
+              setScr("cad");
+            }}
+          >
             <Ic k="store" />
             <span>
               <b>Sou Fornecedor</b>
@@ -3608,6 +3693,10 @@ export function ForneceApp() {
               </div>
             </div>
             {me?.descricao && <p className="profile-description">{me.descricao}</p>}
+            <button className="menu" onClick={() => go("usuarios")}>
+              <Ic k="user" />
+              Perfis dos usuários
+            </button>
             <button className="menu" onClick={editarPerfil}>
               <Ic k="user" />
               Editar perfil
