@@ -464,9 +464,68 @@
             animation: logo .7s both
         }
 
+        .splash .btn {
+            width: min(100%, 280px);
+            margin-right: auto;
+            margin-left: auto;
+            padding: 11px 18px;
+            font-size: 15px
+        }
+
         .splash .btn.ghost {
             color: #fff;
             border-color: #fff
+        }
+
+        .loading-screen {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 18px;
+            background: var(--navy);
+            color: #fff
+        }
+
+        .loading-screen img {
+            width: min(72vw, 320px);
+            max-height: 28vh;
+            object-fit: contain;
+            animation: logo .7s both
+        }
+
+        .loading-bar {
+            width: 112px;
+            height: 4px;
+            overflow: hidden;
+            border-radius: 99px;
+            background: #ffffff45
+        }
+
+        .loading-bar span {
+            display: block;
+            width: 42%;
+            height: 100%;
+            border-radius: inherit;
+            background: var(--or);
+            animation: loading-travel 1.05s ease-in-out infinite
+        }
+
+        .loading-label {
+            color: #ffffffb8;
+            font-size: 12px
+        }
+
+        @keyframes loading-travel {
+            from { transform: translateX(-110%) }
+            to { transform: translateX(240%) }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            .loading-screen img,
+            .loading-bar span { animation: none }
+            .loading-bar span { transform: translateX(70%) }
         }
 
         .lg {

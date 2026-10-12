@@ -506,6 +506,7 @@ const errorMessage = (error: unknown) => (error instanceof Error ? error.message
 
 export function ForneceApp() {
   const [scr, setScr] = useState<Scr>("splash");
+  const [initializing, setInitializing] = useState(true);
   const [me, setMe] = useState<Me | null>(null);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [cartOwnerId, setCartOwnerId] = useState<string | null>(null);
@@ -1099,11 +1100,12 @@ export function ForneceApp() {
   );
 
   const go = (s: Scr, arg?: ScreenArgument) => load(s, arg);
-  const home = (m = me) => {
+  const home = (m = me): Promise<void> | undefined => {
     if (m) {
       meRef.current = m;
-      load(m.tipo === "f" ? "painel" : "feed");
+      return load(m.tipo === "f" ? "painel" : "feed");
     }
+    return undefined;
   };
 
   const loadMe = useCallback(async (): Promise<Me | null> => {
@@ -1171,15 +1173,17 @@ export function ForneceApp() {
       .then((m) => {
         if (m) {
           setMe(m);
-          home(m);
+          return home(m);
         }
+        return undefined;
       })
       .catch((error) => {
         console.error("[session] Could not restore the signed-in profile", error);
         toast(
           "Sua sessão existe, mas não foi possível carregar o perfil. Verifique a configuração do banco e tente entrar novamente.",
         );
-      });
+      })
+      .finally(() => setInitializing(false));
     const { data: sub } = supabase.auth.onAuthStateChange((ev) => {
       if (ev === "SIGNED_OUT") {
         setMe(null);
@@ -4017,6 +4021,18 @@ export function ForneceApp() {
         </div>
       );
       break;
+  }
+
+  if (initializing) {
+    body = (
+      <div className="loading-screen" role="status" aria-label="Carregando Fornece Já">
+        <img src={logoEmp.url} alt="Fornece Já" />
+        <span className="loading-bar" aria-hidden="true">
+          <span />
+        </span>
+        <span className="loading-label">Carregando</span>
+      </div>
+    );
   }
 
   return (
