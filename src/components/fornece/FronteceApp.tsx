@@ -260,9 +260,37 @@ const HELP_COPY: Partial<Record<Scr, { title: string; paragraphs: string[] }>> =
   },
 };
 
+function cpfValido(valor: string) {
+  const digitos = valor.replace(/\D/g, "");
+  if (digitos.length !== 11 || /^(\d)\1+$/.test(digitos)) return false;
+  for (const tamanho of [9, 10]) {
+    let total = 0;
+    for (let i = 0; i < tamanho; i++) total += Number(digitos[i]) * (tamanho + 1 - i);
+    if (((total * 10) % 11) % 10 !== Number(digitos[tamanho])) return false;
+  }
+  return true;
+}
+
+function cnpjValido(valor: string) {
+  const digitos = valor.replace(/\D/g, "");
+  if (digitos.length !== 14 || /^(\d)\1+$/.test(digitos)) return false;
+  const pesos = [
+    [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2],
+    [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2],
+  ];
+  for (const [indice, tamanho] of [12, 13].entries()) {
+    const total = pesos[indice]!.reduce((soma, peso, i) => soma + Number(digitos[i]) * peso, 0);
+    const resto = total % 11;
+    const verificador = resto < 2 ? 0 : 11 - resto;
+    if (verificador !== Number(digitos[tamanho])) return false;
+  }
+  return true;
+}
+
 type Me = {
   id: string;
   tipo: "f" | "e";
+  tipos?: string[];
   empresa: string;
   email: string | null;
   descricao: string | null;
@@ -1085,7 +1113,7 @@ export function ForneceApp() {
     if (!user) return null;
     const { data: profile, error: profileError } = await supabase
       .from("profiles")
-      .select("id,tipo,empresa,descricao,avatar_path,atuacao,categoria,cidade")
+      .select("id,tipo,tipos,empresa,descricao,avatar_path,atuacao,categoria,cidade")
       .eq("id", user.id)
       .maybeSingle();
     err(profileError);
@@ -1099,6 +1127,7 @@ export function ForneceApp() {
       const ins = {
         id: user.id,
         tipo,
+        tipos: [tipo],
         empresa: metadataString("empresa") || user.email || "Minha empresa",
         email: user.email ?? null,
         categoria: metadataString("categoria"),
@@ -1296,16 +1325,6 @@ export function ForneceApp() {
     }
   }
 
-  async function trocarTipo(novo: "f" | "e") {
-    if (!me) return;
-    setBusy(true);
-    const { error } = await supabase.from("profiles").update({ tipo: novo } as any).eq("id", me.id);
-    setBusy(false);
-    if (error) return toast("Não foi possível trocar o tipo de conta.");
-    const m = await loadMe();
-    if (m) { setMe(m); toast(novo === "f" ? "Agora você está como fornecedor." : "Agora você está como comprador."); home(m); }
-  }
-
   async function cadastrar() {
     const f = role === "f",
       dt = f ? "cnpj" : docTipo;
@@ -1318,7 +1337,7 @@ export function ForneceApp() {
     if (senha.length < 6) return toast("A senha precisa ter ao menos 6 caracteres.");
     if (senha !== val("c5b"))
       return toast("As senhas não conferem. Digite a mesma senha nos dois campos.");
-    if (documento.length !== (dt === "cpf" ? 11 : 14))
+    if (!(dt === "cpf" ? cpfValido(documento) : cnpjValido(documento)))
       return toast(`Informe um ${dt === "cpf" ? "CPF" : "CNPJ"} válido.`);
     setBusy(true);
     const { data, error } = await supabase.auth.signUp({
