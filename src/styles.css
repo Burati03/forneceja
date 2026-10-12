@@ -1012,6 +1012,8 @@
 @keyframes negotiation-accepted{0%{transform:scale(.96);opacity:.65}70%{transform:scale(1.02)}100%{transform:scale(1);opacity:1}}
 .forn-link{display:flex;flex-direction:column;gap:2px;background:none;border:0;padding:0;text-align:left;cursor:pointer;margin-top:4px;color:var(--ink)}
 .forn-rate{font-size:13px;font-weight:600;color:var(--mute)}
+.product-supplier-line{display:flex;align-items:baseline;min-width:0;overflow-wrap:anywhere}
+.product-supplier-link{padding:0;border:0;background:none;color:var(--navy);font:inherit;font-weight:700;text-decoration:underline;text-align:left;cursor:pointer}
 .linkbtn{background:none;border:0;color:var(--navy);font-weight:600;text-decoration:underline;cursor:pointer;margin-top:12px;font-size:14px}
 .ai-cta{display:flex;gap:12px;align-items:center;width:100%;text-align:left;background:var(--navy);color:#fff;border:0;border-radius:var(--r);padding:14px;margin-top:6px;cursor:pointer}
 .ai-cta .i{color:var(--or);width:28px;height:28px}
@@ -1035,6 +1037,9 @@ table.adm th{color:var(--mute);font-weight:600}
 .card-actions .sm{float:none;margin:0 0 0 auto}
 .card-actions .linkbtn{margin:0;padding:6px 8px}
 .danger-link{color:#a13232}
+.menu.danger-link{color:#a13232}
+.menu.danger-link .i{color:inherit}
+.btn.danger-button{background:#a13232;border-color:#a13232}
 .price-filters{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:0 0 12px}
 .price-filters label{margin:0}
 .price-filters input{margin-top:4px}

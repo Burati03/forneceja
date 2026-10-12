@@ -160,13 +160,6 @@ const HELP_COPY: Partial<Record<Scr, { title: string; paragraphs: string[] }>> =
       "Fornecedores podem conectar o Mercado Pago para receber pagamentos. Compradores podem revisar pedidos e favoritos.",
     ],
   },
-  usuarios: {
-    title: "Perfis dos usuários",
-    paragraphs: [
-      "Consulte os perfis públicos de compradores e fornecedores cadastrados no app.",
-      "E-mail, documento e telefone privado não são exibidos nesta lista.",
-    ],
-  },
   editar: {
     title: "Editar perfil",
     paragraphs: [
@@ -461,7 +454,6 @@ type Scr =
   | "painel"
   | "pedidos"
   | "perfil"
-  | "usuarios"
   | "editar"
   | "novo"
   | "esqueci"
@@ -541,6 +533,8 @@ export function ForneceApp() {
   const [role, setRole] = useState<"f" | "e" | null>(null);
   const [docTipo, setDocTipo] = useState<"cpf" | "cnpj">("cpf");
   const [busy, setBusy] = useState(false);
+  const [deletePassword, setDeletePassword] = useState("");
+  const [deletePasswordOpen, setDeletePasswordOpen] = useState(false);
   const [notif, setNotif] = useState<Notification[] | null>(null);
   const [unreadNotifCount, setUnreadNotifCount] = useState(0);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
@@ -802,19 +796,6 @@ export function ForneceApp() {
             .eq("fornecedor_id", r!.fornecedor_id);
           const notas = (av || []).map((a) => a.nota);
           data = { ...mapP(r), fav: fs.has(arg), nota: media(notas), nAval: notas.length };
-        } else if (s === "usuarios") {
-          const { data: profiles, error } = await supabase
-            .from("profiles")
-            .select("id,tipo,empresa,categoria,cidade,descricao,avatar_path,atuacao")
-            .order("empresa");
-          err(error);
-          data = await Promise.all(
-            (profiles || []).map(async (profile) => ({
-              ...profile,
-              tipo: profile.tipo === "f" ? ("f" as const) : ("e" as const),
-              avatarUrl: await signedPhoto(profile.avatar_path),
-            })),
-          );
         } else if (s === "forn") {
           if (typeof arg !== "string") throw new Error("Identificador de fornecedor inválido.");
           const { data: pf, error } = await supabase
@@ -1396,6 +1377,43 @@ export function ForneceApp() {
       toast(errorMessage(error) || "Não foi possível trocar o tipo de perfil.");
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function excluirConta() {
+    if (!me?.email) return toast("Não foi possível identificar o e-mail desta conta.");
+    if (!deletePassword) return toast("Digite sua senha para continuar.");
+    setBusy(true);
+    try {
+      const { error: passwordError } = await supabase.auth.signInWithPassword({
+        email: me.email,
+        password: deletePassword,
+      });
+      if (passwordError) return toast("Senha incorreta. Confira e tente novamente.");
+
+      setDeletePasswordOpen(false);
+      const confirmed = window.confirm(
+        "Esta ação é permanente. Seus dados, produtos, conversas e pedidos relacionados serão excluídos. Deseja excluir sua conta?",
+      );
+      if (!confirmed) return;
+
+      const { data, error } = await supabase.functions.invoke("excluir-conta", {
+        body: { password: deletePassword },
+      });
+      if (error) throw new Error(data?.error || error.message);
+      const { error: signOutError } = await supabase.auth.signOut({ scope: "local" });
+      if (signOutError) console.error("[account] Could not clear local session", signOutError);
+      meRef.current = null;
+      setMe(null);
+      setD(null);
+      setX(null);
+      setScr("splash");
+      toast("Conta excluída.");
+    } catch (error) {
+      toast(errorMessage(error) || "Não foi possível excluir sua conta.");
+    } finally {
+      setBusy(false);
+      setDeletePassword("");
     }
   }
 
@@ -2162,8 +2180,11 @@ export function ForneceApp() {
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div className="nm">{p.nome}</div>
-        <div className="mute">
-          {p.fornecedor} · {p.cidade || ""}
+        <div className="mute product-supplier-line">
+          <button className="product-supplier-link" onClick={() => go("forn", p.fornecedor_id)}>
+            {p.fornecedor}
+          </button>
+          {p.cidade && <> · {p.cidade}</>}
         </div>
         <div className="price">
           {brl(p.preco)} / {p.unidade}
@@ -2441,44 +2462,6 @@ export function ForneceApp() {
         </>
       );
       break;
-    case "usuarios": {
-      const profiles = d as SupplierProfile[] | null;
-      body = (
-        <>
-          <div className="scr">
-            <Back to={() => go("perfil")}>
-              <HelpButton />
-            </Back>
-            <h1>Perfis dos usuários</h1>
-            {profiles?.length ? (
-              profiles.map((profile) => (
-                <button
-                  key={profile.id}
-                  className="menu user-profile"
-                  onClick={() => go("forn", profile.id)}
-                >
-                  <Avatar url={profile.avatarUrl ?? null} name={profile.empresa} />
-                  <span>
-                    <b>{profile.empresa}</b>
-                    <span className="mute">
-                      {profile.tipo === "f" ? "Fornecedor" : "Comprador"}
-                      {[profile.atuacao, profile.categoria, profile.cidade]
-                        .filter(Boolean)
-                        .map((value) => ` · ${value}`)
-                        .join("")}
-                    </span>
-                  </span>
-                </button>
-              ))
-            ) : (
-              <p className="mute">Nenhum perfil encontrado.</p>
-            )}
-          </div>
-          <Nav a="perfil" />
-        </>
-      );
-      break;
-    }
     case "forn": {
       const supplier = d as SupplierDetails;
       const own = me?.id === supplier.pf.id;
@@ -3747,10 +3730,6 @@ export function ForneceApp() {
               </div>
             </div>
             {me?.descricao && <p className="profile-description">{me.descricao}</p>}
-            <button className="menu" onClick={() => go("usuarios")}>
-              <Ic k="user" />
-              Perfis dos usuários
-            </button>
             <button className="menu" onClick={editarPerfil}>
               <Ic k="user" />
               Editar perfil
@@ -3827,6 +3806,17 @@ export function ForneceApp() {
             >
               <Ic k="file" />
               Redefinir senha
+            </button>
+            <button
+              className="menu danger-link"
+              disabled={busy}
+              onClick={() => {
+                setDeletePassword("");
+                setDeletePasswordOpen(true);
+              }}
+            >
+              <Ic k="user" />
+              Excluir minha conta
             </button>
             <h2>Diferenciais do Fornece Já</h2>
             <div className="diff">
@@ -4102,6 +4092,55 @@ export function ForneceApp() {
               ).map((paragraph) => (
                 <p key={paragraph}>{paragraph}</p>
               ))}
+            </section>
+          </div>
+        )}
+        {deletePasswordOpen && (
+          <div
+            className="help-overlay"
+            role="presentation"
+            onClick={(event) => {
+              if (event.target === event.currentTarget) setDeletePasswordOpen(false);
+            }}
+          >
+            <section
+              className="help-dialog"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="delete-account-title"
+            >
+              <button
+                className="ib help-close"
+                aria-label="Cancelar exclusão"
+                onClick={() => setDeletePasswordOpen(false)}
+              >
+                ×
+              </button>
+              <h1 id="delete-account-title">Excluir conta</h1>
+              <p>Digite sua senha para confirmar sua identidade.</p>
+              <label htmlFor="delete-account-password">Senha atual</label>
+              <input
+                id="delete-account-password"
+                type="password"
+                autoComplete="current-password"
+                value={deletePassword}
+                onChange={(event) => setDeletePassword(event.target.value)}
+                onKeyDown={(event) => event.key === "Enter" && void excluirConta()}
+              />
+              <button
+                className="btn danger-button"
+                disabled={busy || !deletePassword}
+                onClick={() => void excluirConta()}
+              >
+                {busy ? "Verificando..." : "Continuar"}
+              </button>
+              <button
+                className="btn ghost"
+                disabled={busy}
+                onClick={() => setDeletePasswordOpen(false)}
+              >
+                Cancelar
+              </button>
             </section>
           </div>
         )}
