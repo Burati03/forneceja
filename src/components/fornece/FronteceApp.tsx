@@ -1160,7 +1160,7 @@ export function ForneceApp() {
           onChange={(e) => setIa((v) => ({ ...v, texto: e.target.value }))} /></label>
         <button className="btn or" disabled={ia.busy} onClick={buscarIA}><Ic k="star" />{ia.busy ? "Procurando..." : "Encontrar produtos"}</button>
         {ia.resumo && <p className="ai-note">{ia.resumo}</p>}
-        {ia.prods && (ia.prods.length ? ia.prods.map((p) => <Card key={p.id} p={p} />) : <p className="mute" style={{ marginTop: 12 }}>Nenhum produto do catálogo atende a esse pedido.</p>)}
+        <div className="prod-list">{ia.prods && (ia.prods.length ? ia.prods.map((p) => <Card key={p.id} p={p} />) : <p className="mute" style={{ marginTop: 12 }}>Nenhum produto do catálogo atende a esse pedido.</p>)}</div>
       </div><Nav a="feed" /></>); break;
     case "forn": {
       const own = me?.id === d.pf.id;
@@ -1183,7 +1183,7 @@ export function ForneceApp() {
             {a.comentario && <p style={{ marginTop: 4 }}>{a.comentario}</p>}
             <div className="mute" style={{ fontSize: 12, marginTop: 4 }}>{new Date(a.criado_em).toLocaleDateString("pt-BR")}</div></div>
         )) : <p className="mute">Nenhum comentário ainda.</p>}
-        <h2>Produtos</h2>{d.prods.length ? d.prods.map((p: Prod) => <Card key={p.id} p={p} />) : <p className="mute">Sem produtos publicados.</p>}
+        <h2>Produtos</h2><div className="prod-list">{d.prods.length ? d.prods.map((p: Prod) => <Card key={p.id} p={p} />) : <p className="mute">Sem produtos publicados.</p>}</div>
       </div><Nav a={own ? "perfil" : "feed"} /></>);
       break;
     }
@@ -1241,7 +1241,7 @@ export function ForneceApp() {
         </div>
         {me?.tipo === "e" && <button className="ai-cta" onClick={() => setScr("ia")}><Ic k="star" /><span><b>Busca inteligente</b><span className="mute">Descreva o que precisa e a IA encontra os produtos</span></span></button>}
         <h2>Destaques para você</h2>
-        {d?.length ? d.map((p: Prod) => <Card key={p.id} p={p} />) : <p className="mute">Nada encontrado. Tente outro termo ou categoria.</p>}
+        <div className="prod-list">{d?.length ? d.map((p: Prod) => <Card key={p.id} p={p} />) : <p className="mute">Nada encontrado. Tente outro termo ou categoria.</p>}</div>
       </div><Nav a="feed" /></>); break;
     case "favs": body = (<><div className="scr"><Title>Favoritos</Title>
       <div className="fav-tabs" role="tablist" aria-label="Tipo de favorito">
@@ -1249,7 +1249,7 @@ export function ForneceApp() {
         <button role="tab" aria-selected={favKind === "fornecedores"} className={favKind === "fornecedores" ? "on" : ""} onClick={() => { setFavKind("fornecedores"); load("favs", undefined, { favKind: "fornecedores" }); }}>Fornecedores</button>
       </div>
       {favKind === "produtos"
-        ? d?.length ? d.map((p: Prod) => <Card key={p.id} p={p} />) : <p className="mute" style={{ marginTop: 12 }}>Toque no coração nos detalhes de um produto para salvá-lo aqui.</p>
+        ? <div className="prod-list">{d?.length ? d.map((p: Prod) => <Card key={p.id} p={p} />) : <p className="mute" style={{ marginTop: 12 }}>Toque no coração nos detalhes de um produto para salvá-lo aqui.</p>}</div>
         : d?.length ? d.map((supplier: SupplierProfile) => <div key={supplier.id} className="menu supplier-favorite">
           <button onClick={() => go("forn", supplier.id)}><b>{supplier.empresa}</b><span className="mute">{[supplier.categoria, supplier.cidade].filter(Boolean).join(" · ")}</span></button>
           <button className="ib" aria-label={`Remover ${supplier.empresa} dos favoritos`} onClick={() => { void favFornecedor(supplier.id, true).then(() => load("favs", undefined, { favKind: "fornecedores" })); }}><Ic k="heart" f /></button>
@@ -1408,7 +1408,7 @@ export function ForneceApp() {
         <button className="menu" onClick={() => setScr("perfil")}><Ic k="user" />Meu perfil</button>
       </div><Nav a="painel" /></>); break;
     case "meus": body = (<><div className="scr"><Title>Meus produtos</Title>
-      {d?.length ? d.map((p: Prod) => <Card key={p.id} p={p} />) : <p className="mute" style={{ marginTop: 12 }}>Você ainda não publicou produtos.</p>}
+      <div className="prod-list">{d?.length ? d.map((p: Prod) => <Card key={p.id} p={p} />) : <p className="mute" style={{ marginTop: 12 }}>Você ainda não publicou produtos.</p>}</div>
       <button className="btn or" onClick={novoProduto}>Adicionar produto</button></div><Nav a="meus" /></>); break;
     case "pedidos":
     case "compras": {
