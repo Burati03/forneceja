@@ -1400,6 +1400,12 @@ export function ForneceApp() {
       const { data, error } = await supabase.functions.invoke("excluir-conta", {
         body: { password: deletePassword },
       });
+      if (error?.name === "FunctionsFetchError") {
+        console.error("[account] Could not reach the account deletion function", error);
+        throw new Error(
+          "O serviço de exclusão não está disponível. Publique a Edge Function excluir-conta no Supabase e tente novamente.",
+        );
+      }
       if (error) throw new Error(data?.error || error.message);
       const { error: signOutError } = await supabase.auth.signOut({ scope: "local" });
       if (signOutError) console.error("[account] Could not clear local session", signOutError);
