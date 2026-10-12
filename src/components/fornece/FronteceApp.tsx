@@ -4060,18 +4060,21 @@ export function ForneceApp() {
     <div className="fj-body">
       <div className="fj-app">
         {body}
-        {!initializing && !help && me?.tipos?.includes(me.tipo === "f" ? "e" : "f") && (
-          <button
-            type="button"
-            className="switch-fab"
-            disabled={busy}
-            aria-label={`Mudar para ${me.tipo === "f" ? "comprador" : "fornecedor"}`}
-            onClick={() => void alternarPerfil()}
-          >
-            <Ic k={me.tipo === "f" ? "briefcase" : "store"} />
-            Ir para {me.tipo === "f" ? "Comprador" : "Fornecedor"}
-          </button>
-        )}
+        {scr === "perfil" &&
+          !initializing &&
+          !help &&
+          me?.tipos?.includes(me.tipo === "f" ? "e" : "f") && (
+            <button
+              type="button"
+              className="switch-fab"
+              disabled={busy}
+              aria-label={`Mudar para ${me.tipo === "f" ? "comprador" : "fornecedor"}`}
+              onClick={() => void alternarPerfil()}
+            >
+              <Ic k={me.tipo === "f" ? "briefcase" : "store"} />
+              Ir para {me.tipo === "f" ? "Comprador" : "Fornecedor"}
+            </button>
+          )}
         {help && (
           <div
             className="help-overlay"
