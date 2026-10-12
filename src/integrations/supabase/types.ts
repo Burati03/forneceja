@@ -333,6 +333,7 @@ export type Database = {
           id: string
           is_seed: boolean
           tipo: string
+          tipos: string[]
         }
         Insert: {
           atuacao?: string | null
@@ -346,6 +347,7 @@ export type Database = {
           id: string
           is_seed?: boolean
           tipo: string
+          tipos?: string[]
         }
         Update: {
           atuacao?: string | null
@@ -359,6 +361,7 @@ export type Database = {
           id?: string
           is_seed?: boolean
           tipo?: string
+          tipos?: string[]
         }
         Relationships: []
       }
