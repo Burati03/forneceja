@@ -1378,6 +1378,27 @@ export function ForneceApp() {
     }
   }
 
+  async function alternarPerfil() {
+    if (!me) return;
+    const novoTipo = me.tipo === "f" ? "e" : "f";
+    if (!me.tipos?.includes(novoTipo))
+      return toast("Este tipo de perfil não está habilitado nesta conta.");
+    setBusy(true);
+    try {
+      const { error } = await supabase.rpc("trocar_tipo_perfil", { _tipo: novoTipo });
+      err(error);
+      const perfilAtualizado = await loadMe();
+      if (!perfilAtualizado) throw new Error("Não foi possível atualizar seu perfil.");
+      setMe(perfilAtualizado);
+      await home(perfilAtualizado);
+      toast(novoTipo === "f" ? "Perfil de fornecedor ativado." : "Perfil de comprador ativado.");
+    } catch (error) {
+      toast(errorMessage(error) || "Não foi possível trocar o tipo de perfil.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function fav(id: number) {
     if (!me) return;
     if (me.tipo !== "e") return toast("Favoritos estão disponíveis para contas compradoras.");
@@ -4039,6 +4060,18 @@ export function ForneceApp() {
     <div className="fj-body">
       <div className="fj-app">
         {body}
+        {!initializing && !help && me?.tipos?.includes(me.tipo === "f" ? "e" : "f") && (
+          <button
+            type="button"
+            className="switch-fab"
+            disabled={busy}
+            aria-label={`Mudar para ${me.tipo === "f" ? "comprador" : "fornecedor"}`}
+            onClick={() => void alternarPerfil()}
+          >
+            <Ic k={me.tipo === "f" ? "briefcase" : "store"} />
+            Ir para {me.tipo === "f" ? "Comprador" : "Fornecedor"}
+          </button>
+        )}
         {help && (
           <div
             className="help-overlay"

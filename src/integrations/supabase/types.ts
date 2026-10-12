@@ -428,6 +428,7 @@ export type Database = {
     };
     Functions: {
       meu_tipo: { Args: never; Returns: string };
+      trocar_tipo_perfil: { Args: { _tipo: string }; Returns: undefined };
       mercado_pago_conectado: { Args: never; Returns: boolean };
       resolve_login_email: { Args: { _phone: string }; Returns: string | null };
       aceitar_negociacao: { Args: { _id: number }; Returns: undefined };
