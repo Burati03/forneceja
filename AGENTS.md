@@ -10,3 +10,4 @@
 <!-- LOVABLE:END -->
 
 - The Fornece Já app is a single-screen state machine in src/components/fornece, talking to the database directly with RLS; privileged actions (view counts, order status) go through SECURITY DEFINER RPCs. Why: mirrors the original mobile-style app with minimal routing.
+- One login can hold both roles: profiles.tipos lists enabled roles and profiles.tipo is the active one (a trigger keeps tipos in sync). Why: lets the same email switch between comprador and fornecedor without a second account.

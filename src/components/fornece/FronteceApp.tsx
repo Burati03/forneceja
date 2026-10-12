@@ -66,7 +66,27 @@ const HELP_COPY: Partial<Record<Scr, { title: string; paragraphs: string[] }>> =
   compras: { title: "Acompanhar compras", paragraphs: ["Acompanhe negociação, pagamento e envio de cada pedido nesta tela.", "O aplicativo mostra as atualizações registradas pelo fornecedor e pelo Mercado Pago. Ainda não há integração com rastreio de transportadoras."] },
 };
 
-type Me = { id: string; tipo: "f" | "e"; empresa: string; email: string | null; descricao: string | null; avatar_path: string | null; atuacao: string | null; categoria: string | null; cidade: string | null; cnpj: string | null; telefone: string | null; endereco: string | null };
+function cpfValido(v: string) {
+  const d = v.replace(/\D/g, "");
+  if (d.length !== 11 || /^(\d)\1+$/.test(d)) return false;
+  for (const n of [9, 10]) {
+    let t = 0; for (let i = 0; i < n; i++) t += +d[i]! * (n + 1 - i);
+    if (((t * 10) % 11) % 10 !== +d[n]!) return false;
+  }
+  return true;
+}
+function cnpjValido(v: string) {
+  const d = v.replace(/\D/g, "");
+  if (d.length !== 14 || /^(\d)\1+$/.test(d)) return false;
+  for (const n of [12, 13]) {
+    const w = n === 12 ? [5,4,3,2,9,8,7,6,5,4,3,2] : [6,5,4,3,2,9,8,7,6,5,4,3,2];
+    let t = 0; for (let i = 0; i < n; i++) t += +d[i]! * w[i]!;
+    const r = t % 11 < 2 ? 0 : 11 - (t % 11);
+    if (r !== +d[n]!) return false;
+  }
+  return true;
+}
+type Me = { id: string; tipo: "f" | "e"; tipos?: string[]; empresa: string; email: string | null; descricao: string | null; avatar_path: string | null; atuacao: string | null; categoria: string | null; cidade: string | null; cnpj: string | null; telefone: string | null; endereco: string | null };
 type Prod = { id: number; nome: string; preco: number; unidade: string; qtd_min: number; categoria: string | null; descricao: string | null; icone: string; views: number; fornecedor_id: string; fornecedor: string; cidade: string | null; imagem_path: string | null; imageUrl: string | null; ativo: boolean; fav?: boolean; favFornecedor?: boolean };
 type CartItem = Pick<Prod, "id" | "nome" | "preco" | "unidade" | "qtd_min" | "icone" | "fornecedor_id" | "fornecedor" | "cidade"> & { quantidade: number };
 type Negotiation = { id: number; qtd: number; preco_unitario: number; status: string; comprador_aceitou: boolean; fornecedor_aceitou: boolean; pagamento_status: string; mensagem_proposta: string | null; produto: { id: number; nome: string; unidade: string; fornecedor_id: string } | null };
@@ -380,7 +400,7 @@ export function ForneceApp() {
   const loadMe = useCallback(async (): Promise<Me | null> => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return null;
-    const { data: profile, error: profileError } = await supabase.from("profiles").select("id,tipo,empresa,descricao,avatar_path,atuacao,categoria,cidade").eq("id", user.id).maybeSingle();
+    const { data: profile, error: profileError } = await supabase.from("profiles").select("id,tipo,tipos,empresa,descricao,avatar_path,atuacao,categoria,cidade").eq("id", user.id).maybeSingle();
     err(profileError);
     let p = profile;
     if (!p) {
@@ -500,6 +520,16 @@ export function ForneceApp() {
     }
   }
 
+  async function trocarTipo(novo: "f" | "e") {
+    if (!me) return;
+    setBusy(true);
+    const { error } = await supabase.from("profiles").update({ tipo: novo } as any).eq("id", me.id);
+    setBusy(false);
+    if (error) return toast("Não foi possível trocar o tipo de conta.");
+    const m = await loadMe();
+    if (m) { setMe(m); toast(novo === "f" ? "Agora você está como fornecedor." : "Agora você está como comprador."); home(m); }
+  }
+
   async function cadastrar() {
     const f = role === "f", dt = f ? "cnpj" : docTipo;
     const empresa = val("c1").trim(), email = val("c4").trim().toLowerCase(), senha = val("c5");
@@ -507,7 +537,7 @@ export function ForneceApp() {
     if (!empresa || !email.includes("@")) return toast("Preencha seu nome ou nome da empresa e um e-mail válido.");
     if (senha.length < 6) return toast("A senha precisa ter ao menos 6 caracteres.");
     if (senha !== val("c5b")) return toast("As senhas não conferem. Digite a mesma senha nos dois campos.");
-    if (documento.length !== (dt === "cpf" ? 11 : 14)) return toast(`Informe um ${dt === "cpf" ? "CPF" : "CNPJ"} válido.`);
+    if (!(dt === "cpf" ? cpfValido(documento) : cnpjValido(documento))) return toast(`Informe um ${dt === "cpf" ? "CPF" : "CNPJ"} válido.`);
     setBusy(true);
     const { data, error } = await supabase.auth.signUp({
       email, password: senha,
@@ -925,7 +955,7 @@ export function ForneceApp() {
     if (!email.includes("@")) return toast("Informe um e-mail válido.");
     if (form.descricao.trim().length > 1000) return toast("A descrição pode ter até 1000 caracteres.");
     const cnpj = form.cnpj.replace(/\D/g, "");
-    if (me.tipo === "f" && cnpj.length !== 14) return toast("Informe um CNPJ com 14 dígitos.");
+    if (me.tipo === "f" && !cnpjValido(cnpj)) return toast("Informe um CNPJ válido.");
     setBusy(true);
     let path = me.avatar_path;
     let novoPath: string | null = null;
@@ -1460,7 +1490,10 @@ export function ForneceApp() {
       }}><Ic k="file" />Redefinir senha</button>
       <h2>Diferenciais do Fornece Já</h2><div className="diff">
         {[["star", "Avaliação de fornecedores"], ["trophy", "Mais vendidos"], ["bell", "Promoções"], ["pin", "Busca por estado/cidade"], ["file", "Catálogo em PDF"], ["card", "Pagamento integrado"], ["truck", "Rastreio de entrega"]].map(([k, t]) => <span key={t}><Ic k={k!} />{t}</span>)}</div>
-      <button className="btn ghost" onClick={() => supabase.auth.signOut()}>Sair</button></div><Nav a="perfil" /></>); break;
+      {me?.tipo === "e" && !me.tipos?.includes("f") && <button className="btn" disabled={busy} onClick={() => { if (confirm("Ativar seu perfil de fornecedor com este mesmo e-mail? Você poderá voltar a ser comprador quando quiser.")) trocarTipo("f"); }}><Ic k="box" />Seja fornecedor</button>}
+      <button className="btn ghost" onClick={() => supabase.auth.signOut()}>Sair</button></div>
+      {me && me.tipos?.includes("f") && me.tipos?.includes("e") && <button className="switch-fab" disabled={busy} onClick={() => trocarTipo(me.tipo === "f" ? "e" : "f")}><Ic k="user" />Trocar para {me.tipo === "f" ? "comprador" : "fornecedor"}</button>}
+      <Nav a="perfil" /></>); break;
     case "editar": body = (<><div className="scr"><Back to={() => go("perfil")} /><h1>Editar perfil</h1>
       <label className="photo-picker"><Avatar url={fotoPreview || avatarUrl} name={form.empresa || "Perfil"} /><span><Ic k="camera" />{foto ? "Trocar foto" : "Adicionar foto"}</span><input type="file" accept="image/jpeg,image/png,image/webp" onChange={(e) => escolherFoto(e.target.files?.[0])} /></label>
       <p className="mute photo-hint">JPG, PNG ou WebP · até 2 MB</p>

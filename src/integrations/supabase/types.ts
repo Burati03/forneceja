@@ -296,6 +296,7 @@ export type Database = {
           is_seed: boolean
           telefone_publico: string | null
           tipo: string
+          tipos: string[]
         }
         Insert: {
           atuacao?: string | null
@@ -312,6 +313,7 @@ export type Database = {
           is_seed?: boolean
           telefone_publico?: string | null
           tipo: string
+          tipos?: string[]
         }
         Update: {
           atuacao?: string | null
@@ -328,6 +330,7 @@ export type Database = {
           is_seed?: boolean
           telefone_publico?: string | null
           tipo?: string
+          tipos?: string[]
         }
         Relationships: []
       }

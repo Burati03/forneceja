@@ -4,16 +4,6 @@
 // postMessage so the project's preview surfaces share one login; else localStorage.
 export function brokeredPreviewStorage() {
   if (typeof window === 'undefined') return undefined;
-  const REMEMBER_LOGIN_KEY = 'forneceja.saved-login';
-  const rememberLogin = () => localStorage.getItem(REMEMBER_LOGIN_KEY) !== 'false';
-  const browserStorage = {
-    getItem: (key: string) => (rememberLogin() ? localStorage : sessionStorage).getItem(key),
-    setItem: (key: string, value: string) => (rememberLogin() ? localStorage : sessionStorage).setItem(key, value),
-    removeItem: (key: string) => {
-      localStorage.removeItem(key);
-      sessionStorage.removeItem(key);
-    },
-  };
   const host = location.hostname;
   const PREVIEW_ZONES = ['lovableproject.com', 'lovableproject-dev.com', 'lovable.app', 'gpt-eng.com', 'gptengineer.run'];
   const onPreviewZone = PREVIEW_ZONES.some((z) => host === z || host.endsWith('.' + z));
@@ -25,7 +15,7 @@ export function brokeredPreviewStorage() {
         ?? host.match(new RegExp('^(' + UUID + ')(?=[.-])', 'i'))?.[1])
     : undefined;
   const framed = window.parent && window.parent !== window;
-  if (!projectId || !framed) return browserStorage;
+  if (!projectId || !framed) return localStorage;
 
   // Post only to the real editor ancestor, validated as a Lovable origin, so the
   // session token can never reach an untrusted embedder.
@@ -70,7 +60,7 @@ export function brokeredPreviewStorage() {
   let firstGet = true;
   const RETRY_DELAY = 250;
 
-  const previewStorage = {
+  return {
     getItem: async (key: string) => {
       let res = await request('lovable-preview-auth:get', key);
       if (!res && firstGet) {
@@ -98,16 +88,6 @@ export function brokeredPreviewStorage() {
     removeItem: (key: string) => {
       localStorage.removeItem(key);
       return request('lovable-preview-auth:remove', key).then(() => undefined);
-    },
-  };
-  return {
-    getItem: (key: string) => rememberLogin() ? previewStorage.getItem(key) : sessionStorage.getItem(key),
-    setItem: (key: string, value: string) => rememberLogin()
-      ? previewStorage.setItem(key, value)
-      : sessionStorage.setItem(key, value),
-    removeItem: (key: string) => {
-      sessionStorage.removeItem(key);
-      return previewStorage.removeItem(key);
     },
   };
 }
