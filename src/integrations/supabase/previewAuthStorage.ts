@@ -33,7 +33,7 @@ export function brokeredPreviewStorage() {
       )?.[1] ?? host.match(new RegExp("^(" + UUID + ")(?=[.-])", "i"))?.[1])
     : undefined;
   const framed = window.parent && window.parent !== window;
-  if (!projectId || !framed) return browserStorage;
+  if (!projectId || !framed) return localStorage;
 
   // Post only to the real editor ancestor, validated as a Lovable origin, so the
   // session token can never reach an untrusted embedder.
@@ -86,7 +86,7 @@ export function brokeredPreviewStorage() {
   let firstGet = true;
   const RETRY_DELAY = 250;
 
-  const previewStorage = {
+  return {
     getItem: async (key: string) => {
       let res = await request("lovable-preview-auth:get", key);
       if (!res && firstGet) {

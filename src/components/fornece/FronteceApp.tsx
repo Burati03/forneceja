@@ -1296,6 +1296,16 @@ export function ForneceApp() {
     }
   }
 
+  async function trocarTipo(novo: "f" | "e") {
+    if (!me) return;
+    setBusy(true);
+    const { error } = await supabase.from("profiles").update({ tipo: novo } as any).eq("id", me.id);
+    setBusy(false);
+    if (error) return toast("Não foi possível trocar o tipo de conta.");
+    const m = await loadMe();
+    if (m) { setMe(m); toast(novo === "f" ? "Agora você está como fornecedor." : "Agora você está como comprador."); home(m); }
+  }
+
   async function cadastrar() {
     const f = role === "f",
       dt = f ? "cnpj" : docTipo;
@@ -1933,7 +1943,7 @@ export function ForneceApp() {
     if (form.descricao.trim().length > 1000)
       return toast("A descrição pode ter até 1000 caracteres.");
     const cnpj = form.cnpj.replace(/\D/g, "");
-    if (me.tipo === "f" && cnpj.length !== 14) return toast("Informe um CNPJ com 14 dígitos.");
+    if (me.tipo === "f" && !cnpjValido(cnpj)) return toast("Informe um CNPJ válido.");
     setBusy(true);
     let path = me.avatar_path;
     let novoPath: string | null = null;
