@@ -1,0 +1,4 @@
+CREATE POLICY "product photos read" ON storage.objects FOR SELECT TO authenticated USING(bucket_id='fotos-produtos');
+CREATE POLICY "product photos upload own" ON storage.objects FOR INSERT TO authenticated WITH CHECK(bucket_id='fotos-produtos' AND (storage.foldername(name))[1]=auth.uid()::text AND public.meu_tipo()='f');
+CREATE POLICY "product photos replace own" ON storage.objects FOR UPDATE TO authenticated USING(bucket_id='fotos-produtos' AND (storage.foldername(name))[1]=auth.uid()::text AND public.meu_tipo()='f') WITH CHECK(bucket_id='fotos-produtos' AND (storage.foldername(name))[1]=auth.uid()::text AND public.meu_tipo()='f');
+CREATE POLICY "product photos delete own" ON storage.objects FOR DELETE TO authenticated USING(bucket_id='fotos-produtos' AND (storage.foldername(name))[1]=auth.uid()::text AND public.meu_tipo()='f');

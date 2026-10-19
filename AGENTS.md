@@ -11,3 +11,5 @@
 
 - The Fornece Já app is a single-screen state machine in src/components/fornece, talking to the database directly with RLS; privileged actions (view counts, order status) go through SECURITY DEFINER RPCs. Why: mirrors the original mobile-style app with minimal routing.
 - One login can hold both roles: profiles.tipos lists enabled roles and profiles.tipo is the active one (a trigger keeps tipos in sync). Why: lets the same email switch between comprador and fornecedor without a second account.
+- The app frame uses dynamic viewport height with independently scrollable screens and touch-sized controls below the desktop breakpoint. Why: browser bars and on-screen keyboards must not shrink or clip mobile content.
+- Product photos are stored privately and displayed through refreshed signed URLs in ProductPhoto. Why: storage policies block public buckets while authenticated catalog users still need to see images.
