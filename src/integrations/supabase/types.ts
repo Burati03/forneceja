@@ -87,6 +87,32 @@ export type Database = {
         }
         Relationships: []
       }
+      buscas_usuario: {
+        Row: {
+          consulta: string
+          pesquisado_em: string
+          user_id: string
+        }
+        Insert: {
+          consulta: string
+          pesquisado_em?: string
+          user_id: string
+        }
+        Update: {
+          consulta?: string
+          pesquisado_em?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "buscas_usuario_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       favoritos: {
         Row: {
           produto_id: number
@@ -106,6 +132,39 @@ export type Database = {
             columns: ["produto_id"]
             isOneToOne: false
             referencedRelation: "produtos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      fornecedores_favoritos: {
+        Row: {
+          comprador_id: string
+          criado_em: string
+          fornecedor_id: string
+        }
+        Insert: {
+          comprador_id: string
+          criado_em?: string
+          fornecedor_id: string
+        }
+        Update: {
+          comprador_id?: string
+          criado_em?: string
+          fornecedor_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fornecedores_favoritos_comprador_id_fkey"
+            columns: ["comprador_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fornecedores_favoritos_fornecedor_id_fkey"
+            columns: ["fornecedor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -210,6 +269,74 @@ export type Database = {
           },
         ]
       }
+      notificacoes: {
+        Row: {
+          avaliacao_id: number | null
+          criado_em: string
+          id: number
+          lida_em: string | null
+          mensagem_id: number | null
+          pedido_id: number | null
+          texto: string
+          tipo: string
+          titulo: string
+          user_id: string
+        }
+        Insert: {
+          avaliacao_id?: number | null
+          criado_em?: string
+          id?: number
+          lida_em?: string | null
+          mensagem_id?: number | null
+          pedido_id?: number | null
+          texto: string
+          tipo: string
+          titulo: string
+          user_id: string
+        }
+        Update: {
+          avaliacao_id?: number | null
+          criado_em?: string
+          id?: number
+          lida_em?: string | null
+          mensagem_id?: number | null
+          pedido_id?: number | null
+          texto?: string
+          tipo?: string
+          titulo?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notificacoes_avaliacao_id_fkey"
+            columns: ["avaliacao_id"]
+            isOneToOne: false
+            referencedRelation: "avaliacoes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notificacoes_mensagem_id_fkey"
+            columns: ["mensagem_id"]
+            isOneToOne: false
+            referencedRelation: "mensagens"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notificacoes_pedido_id_fkey"
+            columns: ["pedido_id"]
+            isOneToOne: false
+            referencedRelation: "pedidos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notificacoes_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       pedidos: {
         Row: {
           comprador_aceitou: boolean
@@ -217,6 +344,7 @@ export type Database = {
           empresario_id: string
           fornecedor_aceitou: boolean
           id: number
+          mensagem_proposta: string | null
           mercado_pago_pagamento_id: string | null
           mercado_pago_preferencia_id: string | null
           pagamento_status: string
@@ -231,6 +359,7 @@ export type Database = {
           empresario_id: string
           fornecedor_aceitou?: boolean
           id?: number
+          mensagem_proposta?: string | null
           mercado_pago_pagamento_id?: string | null
           mercado_pago_preferencia_id?: string | null
           pagamento_status?: string
@@ -245,6 +374,7 @@ export type Database = {
           empresario_id?: string
           fornecedor_aceitou?: boolean
           id?: number
+          mensagem_proposta?: string | null
           mercado_pago_pagamento_id?: string | null
           mercado_pago_preferencia_id?: string | null
           pagamento_status?: string
@@ -272,12 +402,14 @@ export type Database = {
       }
       produtos: {
         Row: {
+          ativo: boolean
           categoria: string | null
           criado_em: string
           descricao: string | null
           fornecedor_id: string
           icone: string
           id: number
+          imagem_path: string | null
           nome: string
           preco: number
           qtd_min: number
@@ -285,12 +417,14 @@ export type Database = {
           views: number
         }
         Insert: {
+          ativo?: boolean
           categoria?: string | null
           criado_em?: string
           descricao?: string | null
           fornecedor_id: string
           icone?: string
           id?: number
+          imagem_path?: string | null
           nome: string
           preco: number
           qtd_min?: number
@@ -298,12 +432,14 @@ export type Database = {
           views?: number
         }
         Update: {
+          ativo?: boolean
           categoria?: string | null
           criado_em?: string
           descricao?: string | null
           fornecedor_id?: string
           icone?: string
           id?: number
+          imagem_path?: string | null
           nome?: string
           preco?: number
           qtd_min?: number
@@ -326,12 +462,15 @@ export type Database = {
           avatar_path: string | null
           categoria: string | null
           cidade: string | null
+          cnpj: string | null
           criado_em: string
           descricao: string | null
           email: string | null
           empresa: string
+          endereco: string | null
           id: string
           is_seed: boolean
+          telefone_publico: string | null
           tipo: string
           tipos: string[]
         }
@@ -340,12 +479,15 @@ export type Database = {
           avatar_path?: string | null
           categoria?: string | null
           cidade?: string | null
+          cnpj?: string | null
           criado_em?: string
           descricao?: string | null
           email?: string | null
           empresa: string
+          endereco?: string | null
           id: string
           is_seed?: boolean
+          telefone_publico?: string | null
           tipo: string
           tipos?: string[]
         }
@@ -354,12 +496,15 @@ export type Database = {
           avatar_path?: string | null
           categoria?: string | null
           cidade?: string | null
+          cnpj?: string | null
           criado_em?: string
           descricao?: string | null
           email?: string | null
           empresa?: string
+          endereco?: string | null
           id?: string
           is_seed?: boolean
+          telefone_publico?: string | null
           tipo?: string
           tipos?: string[]
         }
@@ -400,12 +545,36 @@ export type Database = {
     }
     Functions: {
       aceitar_negociacao: { Args: { _id: number }; Returns: undefined }
+      contrapropor_negociacao: {
+        Args: {
+          _id: number
+          _mensagem: string
+          _preco: number
+          _quantidade: number
+        }
+        Returns: undefined
+      }
+      criar_proposta: {
+        Args: {
+          _mensagem: string
+          _preco: number
+          _produto_id: number
+          _quantidade: number
+        }
+        Returns: number
+      }
       mercado_pago_conectado: { Args: never; Returns: boolean }
       meu_tipo: { Args: never; Returns: string }
       mudar_status: {
         Args: { _id: number; _status: string }
         Returns: undefined
       }
+      resolve_login_email: { Args: { _phone: string }; Returns: string }
+      responder_contraproposta: {
+        Args: { _aceitar: boolean; _id: number }
+        Returns: undefined
+      }
+      trocar_tipo_perfil: { Args: { _tipo: string }; Returns: undefined }
       ver_produto: { Args: { _id: number }; Returns: undefined }
     }
     Enums: {
