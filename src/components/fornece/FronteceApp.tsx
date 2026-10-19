@@ -8,6 +8,7 @@ import type { Database } from "@/integrations/supabase/types";
 import logoBranco from "@/assets/logo-branco.png.asset.json";
 import logoCor from "@/assets/logo-cor.png.asset.json";
 import logoEmp from "@/assets/logo-empilhado.png.asset.json";
+import { ProductPhoto } from "./ProductPhoto";
 
 const ICONS: Record<string, string> = {
   home: "M3 11l9-8 9 8M5 10v10h14V10M10 20v-6h4v6",
@@ -464,14 +465,12 @@ type Scr =
   | "compras";
 
 const PSEL = "*, p:profiles!produtos_fornecedor_id_fkey(empresa,cidade)";
-const productPhotoUrl = (path: string | null | undefined) =>
-  path ? supabase.storage.from("fotos-produtos").getPublicUrl(path).data.publicUrl : null;
 const mapP = (r: ProductQueryRow): Prod => ({
   ...r,
   preco: Number(r.preco),
   fornecedor: r.p?.empresa ?? "",
   cidade: r.p?.cidade ?? null,
-  imageUrl: productPhotoUrl(r.imagem_path),
+  imageUrl: r.imagem_path ?? null,
 });
 const isMissingColumnError = (error: { code?: string } | null) =>
   error?.code === "42703" || error?.code === "PGRST204";
@@ -2182,7 +2181,7 @@ export function ForneceApp() {
   const Card = ({ p }: { p: Prod }) => (
     <div className="pc">
       <div className="pic">
-        {p.imageUrl ? <img src={p.imageUrl} alt={p.nome} /> : <Ic k={p.icone} />}
+        <ProductPhoto path={p.imageUrl} alt={p.nome} fallback={<Ic k={p.icone} />} />
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div className="nm">{p.nome}</div>
@@ -2957,7 +2956,7 @@ export function ForneceApp() {
             </button>
           </Back>
           <div className="hero">
-            {p.imageUrl ? <img src={p.imageUrl} alt={p.nome} /> : <Ic k={p.icone} />}
+            <ProductPhoto path={p.imageUrl} alt={p.nome} fallback={<Ic k={p.icone} />} />
           </div>
           <h1 style={{ marginTop: 14 }}>{p.nome}</h1>
           <button className="forn-link" onClick={() => go("forn", p.fornecedor_id)}>
@@ -3963,11 +3962,10 @@ export function ForneceApp() {
           </Back>
           <h1>{productDraft ? "Editar produto" : "Novo produto"}</h1>
           <label className="product-photo-picker">
-            {productPhotoPreview || productDraft?.imageUrl ? (
-              <img
-                src={productPhotoPreview || productDraft?.imageUrl || ""}
-                alt="Prévia do produto"
-              />
+            {productPhotoPreview ? (
+              <img src={productPhotoPreview} alt="Prévia do produto" />
+            ) : productDraft?.imageUrl ? (
+              <ProductPhoto path={productDraft.imageUrl} alt="Prévia do produto" fallback={<Ic k="camera" />} />
             ) : (
               <span>
                 <Ic k="camera" />
