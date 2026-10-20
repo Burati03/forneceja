@@ -1,3 +1,4 @@
+import { excluirMinhaConta } from "@/lib/conta.functions";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useServerFn } from "@tanstack/react-start";
@@ -1396,16 +1397,8 @@ export function ForneceApp() {
       );
       if (!confirmed) return;
 
-      const { data, error } = await supabase.functions.invoke("excluir-conta", {
-        body: { password: deletePassword },
-      });
-      if (error?.name === "FunctionsFetchError") {
-        console.error("[account] Could not reach the account deletion function", error);
-        throw new Error(
-          "O serviço de exclusão não está disponível. Publique a Edge Function excluir-conta no Supabase e tente novamente.",
-        );
-      }
-      if (error) throw new Error(data?.error || error.message);
+      const result = await excluirMinhaConta();
+      if (!result.ok) throw new Error(result.erro);
       const { error: signOutError } = await supabase.auth.signOut({ scope: "local" });
       if (signOutError) console.error("[account] Could not clear local session", signOutError);
       meRef.current = null;

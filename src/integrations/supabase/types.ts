@@ -563,6 +563,7 @@ export type Database = {
         }
         Returns: number
       }
+      excluir_conta: { Args: { _user_id: string }; Returns: undefined }
       mercado_pago_conectado: { Args: never; Returns: boolean }
       meu_tipo: { Args: never; Returns: string }
       mudar_status: {
