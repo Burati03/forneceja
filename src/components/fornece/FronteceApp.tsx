@@ -1607,16 +1607,15 @@ export function ForneceApp() {
       if (!Number.isSafeInteger(cartTotalCents))
         throw new Error("O valor total do carrinho excede o limite permitido para pagamento.");
 
-      const { error } = await supabase.from("pedidos").insert(
-        currentCart.map((item) => ({
-          produto_id: item.id,
-          empresario_id: me.id,
-          qtd: item.quantidade,
-          preco_unitario: item.preco,
-          comprador_aceitou: true,
-        })),
-      );
-      if (error) throw new Error(error.message);
+      for (const item of currentCart) {
+        const { error } = await supabase.rpc("criar_proposta", {
+          _produto_id: item.id,
+          _quantidade: item.quantidade,
+          _preco: item.preco,
+          _mensagem: `Pedido pelo carrinho: ${item.quantidade} ${pl(item.quantidade, item.unidade)} de ${item.nome}.`,
+        });
+        if (error) throw new Error(error.message);
+      }
       const itemCount = currentCart.length;
       setCart([]);
       toast(
