@@ -551,8 +551,8 @@ export function ForneceApp() {
     endereco: "",
   });
   const [productDraft, setProductDraft] = useState<Prod | null>(null);
-  const [productPhoto, setProductPhoto] = useState<File | null>(null);
-  const [productPhotoPreview, setProductPhotoPreview] = useState<string | null>(null);
+  const [productPhotos, setProductPhotos] = useState<{ path?: string; file?: File; preview?: string }[]>([]);
+  const [heroIdx, setHeroIdx] = useState(0);
   const [counterDraft, setCounterDraft] = useState<{
     id: number;
     qtd: string;
@@ -1781,27 +1781,25 @@ export function ForneceApp() {
     if (!Number.isSafeInteger(qtdMin) || qtdMin < 1)
       return toast("Informe uma quantidade mínima válida.");
     if (descricao.length > 1000) return toast("A descrição pode ter até 1000 caracteres.");
-    if (!productPhoto && !productDraft?.imagem_path)
-      return toast("Adicione uma imagem para o produto.");
+    if (!productPhotos.length) return toast("Adicione pelo menos uma imagem para o produto.");
+    if (productPhotos.length > 20) return toast("Você pode adicionar até 20 fotos.");
     const categoria = val("n4");
     const icone = CATEGORY_ICONS[categoria] || "box";
     setBusy(true);
-    let newPhotoPath: string | null = null;
+    const uploaded: string[] = [];
     try {
-      let imagem_path = productDraft?.imagem_path || null;
-      if (productPhoto) {
-        const ext =
-          productPhoto.type === "image/png"
-            ? "png"
-            : productPhoto.type === "image/webp"
-              ? "webp"
-              : "jpg";
-        newPhotoPath = `${me.id}/${crypto.randomUUID()}.${ext}`;
+      const imagens: string[] = [];
+      for (const ph of productPhotos) {
+        if (ph.path) { imagens.push(ph.path); continue; }
+        if (!ph.file) continue;
+        const ext = ph.file.type === "image/png" ? "png" : ph.file.type === "image/webp" ? "webp" : "jpg";
+        const path = `${me.id}/${crypto.randomUUID()}.${ext}`;
         const { error: uploadError } = await supabase.storage
           .from("fotos-produtos")
-          .upload(newPhotoPath, productPhoto, { contentType: productPhoto.type });
+          .upload(path, ph.file, { contentType: ph.file.type });
         err(uploadError);
-        imagem_path = newPhotoPath;
+        uploaded.push(path);
+        imagens.push(path);
       }
       const product = {
         nome,
@@ -1811,7 +1809,8 @@ export function ForneceApp() {
         categoria,
         descricao: descricao || null,
         icone,
-        imagem_path,
+        imagem_path: imagens[0] ?? null,
+        imagens,
       };
       if (productDraft) {
         const { data: updated, error } = await supabase
@@ -1823,12 +1822,11 @@ export function ForneceApp() {
           .maybeSingle();
         err(error);
         if (!updated) throw new Error("O produto não está mais disponível para edição.");
-        if (productDraft.imagem_path && productDraft.imagem_path !== imagem_path) {
-          const { error: removeError } = await supabase.storage
-            .from("fotos-produtos")
-            .remove([productDraft.imagem_path]);
-          if (removeError)
-            console.error("[products] Could not remove replaced product image", removeError);
+        const old = productDraft.imagens?.length ? productDraft.imagens : productDraft.imagem_path ? [productDraft.imagem_path] : [];
+        const removed = old.filter((p) => !imagens.includes(p));
+        if (removed.length) {
+          const { error: removeError } = await supabase.storage.from("fotos-produtos").remove(removed);
+          if (removeError) console.error("[products] Could not remove replaced product images", removeError);
         }
         toast("Produto atualizado.");
       } else {
@@ -1838,19 +1836,16 @@ export function ForneceApp() {
         err(error);
         toast("Produto publicado!");
       }
-      newPhotoPath = null;
+      uploaded.length = 0;
       setProductDraft(null);
-      setProductPhoto(null);
-      setProductPhotoPreview(null);
+      setProductPhotos([]);
       go("meus");
     } catch (error) {
       console.error("[products] Could not save product", error);
-      if (newPhotoPath) {
-        const { error: cleanupError } = await supabase.storage
-          .from("fotos-produtos")
-          .remove([newPhotoPath]);
+      if (uploaded.length) {
+        const { error: cleanupError } = await supabase.storage.from("fotos-produtos").remove(uploaded);
         if (cleanupError)
-          console.error("[products] Could not remove temporary product image", cleanupError);
+          console.error("[products] Could not remove temporary product images", cleanupError);
       }
       toast(error instanceof Error ? error.message : "Não foi possível salvar o produto.");
     } finally {
@@ -1862,16 +1857,15 @@ export function ForneceApp() {
     if (!me || me.tipo !== "f" || product.fornecedor_id !== me.id)
       return toast("Você só pode editar seus próprios produtos.");
     setProductDraft(product);
-    setProductPhoto(null);
-    setProductPhotoPreview(null);
+    const paths = product.imagens?.length ? product.imagens : product.imagem_path ? [product.imagem_path] : [];
+    setProductPhotos(paths.map((path) => ({ path })));
     setScr("novo");
   }
 
   function novoProduto() {
     if (!me || me.tipo !== "f") return toast("Somente fornecedores podem cadastrar produtos.");
     setProductDraft(null);
-    setProductPhoto(null);
-    setProductPhotoPreview(null);
+    setProductPhotos([]);
     setScr("novo");
   }
 
