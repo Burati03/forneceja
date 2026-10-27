@@ -311,6 +311,7 @@ type Prod = {
   fornecedor: string;
   cidade: string | null;
   imagem_path: string | null;
+  imagens?: string[];
   imageUrl: string | null;
   ativo: boolean;
   fav?: boolean;
@@ -2099,16 +2100,19 @@ export function ForneceApp() {
     reader.onload = () => setFotoPreview(typeof reader.result === "string" ? reader.result : null);
     reader.readAsDataURL(file);
   };
-  const escolherImagemProduto = (file?: File) => {
-    if (!file) return;
-    if (!["image/jpeg", "image/png", "image/webp"].includes(file.type))
-      return toast("Escolha uma imagem JPG, PNG ou WebP.");
-    if (file.size > 5 * 1024 * 1024) return toast("A imagem do produto deve ter até 5 MB.");
-    setProductPhoto(file);
-    const reader = new FileReader();
-    reader.onload = () =>
-      setProductPhotoPreview(typeof reader.result === "string" ? reader.result : null);
-    reader.readAsDataURL(file);
+  const escolherImagemProduto = (files?: FileList | null) => {
+    if (!files?.length) return;
+    const list = Array.from(files);
+    const free = 20 - productPhotos.length;
+    if (free <= 0) return toast("Limite de 20 fotos atingido.");
+    if (list.length > free) toast(`Só cabem mais ${free} foto(s). As demais foram ignoradas.`);
+    const ok: { file: File; preview: string }[] = [];
+    for (const file of list.slice(0, free)) {
+      if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) { toast("Escolha imagens JPG, PNG ou WebP."); continue; }
+      if (file.size > 5 * 1024 * 1024) { toast("Cada imagem deve ter até 5 MB."); continue; }
+      ok.push({ file, preview: URL.createObjectURL(file) });
+    }
+    setProductPhotos((cur) => [...cur, ...ok].slice(0, 20));
   };
 
   const Back = ({ to, children }: { to: () => void; children?: React.ReactNode }) => (
@@ -2941,9 +2945,26 @@ export function ForneceApp() {
               <Ic k="heart" f={!!p.fav} />
             </button>
           </Back>
-          <div className="hero">
-            <ProductPhoto path={p.imageUrl} alt={p.nome} fallback={<Ic k={p.icone} />} />
-          </div>
+          {(() => {
+            const fotos = p.imagens?.length ? p.imagens : p.imageUrl ? [p.imageUrl] : [];
+            const idx = Math.min(heroIdx, Math.max(fotos.length - 1, 0));
+            return (
+              <>
+                <div className="hero">
+                  <ProductPhoto path={fotos[idx] ?? null} alt={p.nome} fallback={<Ic k={p.icone} />} />
+                </div>
+                {fotos.length > 1 && (
+                  <div className="hero-thumbs">
+                    {fotos.map((f, i) => (
+                      <button key={f} className={i === idx ? "on" : ""} aria-label={`Ver foto ${i + 1}`} onClick={() => setHeroIdx(i)}>
+                        <ProductPhoto path={f} alt="" fallback={<Ic k="camera" />} />
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </>
+            );
+          })()}
           <h1 style={{ marginTop: 14 }}>{p.nome}</h1>
           <button className="forn-link" onClick={() => go("forn", p.fornecedor_id)}>
             <span className="mute">
@@ -3947,24 +3968,22 @@ export function ForneceApp() {
             <HelpButton />
           </Back>
           <h1>{productDraft ? "Editar produto" : "Novo produto"}</h1>
-          <label className="product-photo-picker">
-            {productPhotoPreview ? (
-              <img src={productPhotoPreview} alt="Prévia do produto" />
-            ) : productDraft?.imageUrl ? (
-              <ProductPhoto path={productDraft.imageUrl} alt="Prévia do produto" fallback={<Ic k="camera" />} />
-            ) : (
-              <span>
-                <Ic k="camera" />
-                Adicionar imagem
-              </span>
+          <div className="photo-grid">
+            {productPhotos.map((ph, i) => (
+              <div className="photo-thumb" key={ph.path || ph.preview}>
+                {ph.preview ? <img src={ph.preview} alt={`Foto ${i + 1}`} /> : <ProductPhoto path={ph.path!} alt={`Foto ${i + 1}`} fallback={<Ic k="camera" />} />}
+                {i === 0 && <span className="photo-main">Capa</span>}
+                <button type="button" aria-label="Remover foto" onClick={() => setProductPhotos((c) => c.filter((_, j) => j !== i))}>×</button>
+              </div>
+            ))}
+            {productPhotos.length < 20 && (
+              <label className="product-photo-picker photo-add">
+                <span><Ic k="camera" />Adicionar fotos</span>
+                <input type="file" multiple accept="image/jpeg,image/png,image/webp" onChange={(event) => { escolherImagemProduto(event.target.files); event.target.value = ""; }} />
+              </label>
             )}
-            <input
-              type="file"
-              accept="image/jpeg,image/png,image/webp"
-              onChange={(event) => escolherImagemProduto(event.target.files?.[0])}
-            />
-          </label>
-          <p className="mute photo-hint">Imagem JPG, PNG ou WebP · até 5 MB</p>
+          </div>
+          <p className="mute photo-hint">{productPhotos.length}/20 fotos · JPG, PNG ou WebP · até 5 MB cada · a primeira é a capa</p>
           <label>
             Nome do produto
             <input id="n1" maxLength={120} defaultValue={productDraft?.nome || ""} />
