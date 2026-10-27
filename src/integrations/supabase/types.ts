@@ -410,6 +410,7 @@ export type Database = {
           icone: string
           id: number
           imagem_path: string | null
+          imagens: string[]
           nome: string
           preco: number
           qtd_min: number
@@ -425,6 +426,7 @@ export type Database = {
           icone?: string
           id?: number
           imagem_path?: string | null
+          imagens?: string[]
           nome: string
           preco: number
           qtd_min?: number
@@ -440,6 +442,7 @@ export type Database = {
           icone?: string
           id?: number
           imagem_path?: string | null
+          imagens?: string[]
           nome?: string
           preco?: number
           qtd_min?: number
