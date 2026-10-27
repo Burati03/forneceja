@@ -1081,7 +1081,7 @@ export function ForneceApp() {
     [cat, favKind, maxPrice, minPrice, q],
   );
 
-  const go = (s: Scr, arg?: ScreenArgument) => load(s, arg);
+  const go = (s: Scr, arg?: ScreenArgument) => { setHeroIdx(0); return load(s, arg); };
   const home = (m = me): Promise<void> | undefined => {
     if (m) {
       meRef.current = m;
