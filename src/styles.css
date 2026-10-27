@@ -1100,7 +1100,42 @@ table.adm th{color:var(--mute);font-weight:600}
   .opt>span{min-width:0;overflow-wrap:anywhere}
   .switch-fab{bottom:calc(80px + env(safe-area-inset-bottom,0px));max-width:calc(100% - 32px)}
   .help-dialog{max-height:calc(100dvh - 40px);overflow-y:auto}
+  /* Larger type and controls on phones */
+  .fj-body{font-size:17px}
+  .scr{font-size:17px;line-height:1.45}
+  .scr h1,.top h1{font-size:26px}
+  .scr h2,.scr h3{font-size:20px}
+  .scr p,.scr .mute,.scr small,.scr span{font-size:max(1em,15px)}
+  .fj-body label{font-size:16px}
+  .fj-body input,.fj-body select,.fj-body textarea{font-size:17px;min-height:52px;padding:12px 14px}
+  .btn{min-height:56px;font-size:17px}
+  .ib{width:48px;height:48px}
+  .ib .i{width:24px;height:24px}
+  .fj-body .chip,.fj-body .chips button{font-size:15px;min-height:42px;padding:8px 16px}
+  .pc{padding:14px;gap:14px}
+  .pic{width:88px;height:88px}
+  .nav button{min-height:70px;font-size:13px}
+  .nav button .i{width:27px;height:27px}
+  .hd{padding-top:14px;padding-bottom:14px}
+  .hero{height:300px}
 }
+@media(max-width:360px){
+  .pic{width:74px;height:74px}
+  .nav button{font-size:11px}
+}
+
+/* Product photo gallery */
+.photo-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:10px;margin-bottom:8px}
+.photo-thumb{position:relative;aspect-ratio:1;border-radius:var(--r);overflow:hidden;border:1px solid var(--line);background:var(--card)}
+.photo-thumb img{width:100%;height:100%;object-fit:cover}
+.photo-thumb button{position:absolute;top:4px;right:4px;width:32px;height:32px;border-radius:999px;border:0;background:var(--navy);color:var(--card);font-size:20px;line-height:1;cursor:pointer}
+.photo-main{position:absolute;left:4px;bottom:4px;padding:2px 8px;border-radius:999px;background:var(--or);color:var(--card);font-size:12px;font-weight:700}
+.photo-add{height:auto;aspect-ratio:1;position:relative}
+.photo-add>span{flex-direction:column;text-align:center;font-size:14px}
+.hero-thumbs{display:flex;gap:8px;overflow-x:auto;padding:10px 0 2px}
+.hero-thumbs button{flex:0 0 64px;height:64px;padding:0;border:2px solid transparent;border-radius:10px;overflow:hidden;background:var(--card);cursor:pointer}
+.hero-thumbs button.on{border-color:var(--or)}
+.hero-thumbs img{width:100%;height:100%;object-fit:cover}
 
 @media(max-height:560px){
   .fj-body{align-items:stretch}

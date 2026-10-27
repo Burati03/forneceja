@@ -29,6 +29,13 @@
       "when": 1792508922862,
       "tag": "0003_delete_account",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1793114505823,
+      "tag": "0004_product_multiple_photos",
+      "breakpoints": true
     }
   ]
 }

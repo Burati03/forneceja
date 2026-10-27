@@ -311,6 +311,7 @@ type Prod = {
   fornecedor: string;
   cidade: string | null;
   imagem_path: string | null;
+  imagens?: string[];
   imageUrl: string | null;
   ativo: boolean;
   fav?: boolean;
@@ -551,8 +552,8 @@ export function ForneceApp() {
     endereco: "",
   });
   const [productDraft, setProductDraft] = useState<Prod | null>(null);
-  const [productPhoto, setProductPhoto] = useState<File | null>(null);
-  const [productPhotoPreview, setProductPhotoPreview] = useState<string | null>(null);
+  const [productPhotos, setProductPhotos] = useState<{ path?: string; file?: File; preview?: string }[]>([]);
+  const [heroIdx, setHeroIdx] = useState(0);
   const [counterDraft, setCounterDraft] = useState<{
     id: number;
     qtd: string;
@@ -1080,7 +1081,7 @@ export function ForneceApp() {
     [cat, favKind, maxPrice, minPrice, q],
   );
 
-  const go = (s: Scr, arg?: ScreenArgument) => load(s, arg);
+  const go = (s: Scr, arg?: ScreenArgument) => { setHeroIdx(0); return load(s, arg); };
   const home = (m = me): Promise<void> | undefined => {
     if (m) {
       meRef.current = m;
@@ -1781,27 +1782,25 @@ export function ForneceApp() {
     if (!Number.isSafeInteger(qtdMin) || qtdMin < 1)
       return toast("Informe uma quantidade mínima válida.");
     if (descricao.length > 1000) return toast("A descrição pode ter até 1000 caracteres.");
-    if (!productPhoto && !productDraft?.imagem_path)
-      return toast("Adicione uma imagem para o produto.");
+    if (!productPhotos.length) return toast("Adicione pelo menos uma imagem para o produto.");
+    if (productPhotos.length > 20) return toast("Você pode adicionar até 20 fotos.");
     const categoria = val("n4");
     const icone = CATEGORY_ICONS[categoria] || "box";
     setBusy(true);
-    let newPhotoPath: string | null = null;
+    const uploaded: string[] = [];
     try {
-      let imagem_path = productDraft?.imagem_path || null;
-      if (productPhoto) {
-        const ext =
-          productPhoto.type === "image/png"
-            ? "png"
-            : productPhoto.type === "image/webp"
-              ? "webp"
-              : "jpg";
-        newPhotoPath = `${me.id}/${crypto.randomUUID()}.${ext}`;
+      const imagens: string[] = [];
+      for (const ph of productPhotos) {
+        if (ph.path) { imagens.push(ph.path); continue; }
+        if (!ph.file) continue;
+        const ext = ph.file.type === "image/png" ? "png" : ph.file.type === "image/webp" ? "webp" : "jpg";
+        const path = `${me.id}/${crypto.randomUUID()}.${ext}`;
         const { error: uploadError } = await supabase.storage
           .from("fotos-produtos")
-          .upload(newPhotoPath, productPhoto, { contentType: productPhoto.type });
+          .upload(path, ph.file, { contentType: ph.file.type });
         err(uploadError);
-        imagem_path = newPhotoPath;
+        uploaded.push(path);
+        imagens.push(path);
       }
       const product = {
         nome,
@@ -1811,7 +1810,8 @@ export function ForneceApp() {
         categoria,
         descricao: descricao || null,
         icone,
-        imagem_path,
+        imagem_path: imagens[0] ?? null,
+        imagens,
       };
       if (productDraft) {
         const { data: updated, error } = await supabase
@@ -1823,12 +1823,11 @@ export function ForneceApp() {
           .maybeSingle();
         err(error);
         if (!updated) throw new Error("O produto não está mais disponível para edição.");
-        if (productDraft.imagem_path && productDraft.imagem_path !== imagem_path) {
-          const { error: removeError } = await supabase.storage
-            .from("fotos-produtos")
-            .remove([productDraft.imagem_path]);
-          if (removeError)
-            console.error("[products] Could not remove replaced product image", removeError);
+        const old = productDraft.imagens?.length ? productDraft.imagens : productDraft.imagem_path ? [productDraft.imagem_path] : [];
+        const removed = old.filter((p) => !imagens.includes(p));
+        if (removed.length) {
+          const { error: removeError } = await supabase.storage.from("fotos-produtos").remove(removed);
+          if (removeError) console.error("[products] Could not remove replaced product images", removeError);
         }
         toast("Produto atualizado.");
       } else {
@@ -1838,19 +1837,16 @@ export function ForneceApp() {
         err(error);
         toast("Produto publicado!");
       }
-      newPhotoPath = null;
+      uploaded.length = 0;
       setProductDraft(null);
-      setProductPhoto(null);
-      setProductPhotoPreview(null);
+      setProductPhotos([]);
       go("meus");
     } catch (error) {
       console.error("[products] Could not save product", error);
-      if (newPhotoPath) {
-        const { error: cleanupError } = await supabase.storage
-          .from("fotos-produtos")
-          .remove([newPhotoPath]);
+      if (uploaded.length) {
+        const { error: cleanupError } = await supabase.storage.from("fotos-produtos").remove(uploaded);
         if (cleanupError)
-          console.error("[products] Could not remove temporary product image", cleanupError);
+          console.error("[products] Could not remove temporary product images", cleanupError);
       }
       toast(error instanceof Error ? error.message : "Não foi possível salvar o produto.");
     } finally {
@@ -1862,16 +1858,15 @@ export function ForneceApp() {
     if (!me || me.tipo !== "f" || product.fornecedor_id !== me.id)
       return toast("Você só pode editar seus próprios produtos.");
     setProductDraft(product);
-    setProductPhoto(null);
-    setProductPhotoPreview(null);
+    const paths = product.imagens?.length ? product.imagens : product.imagem_path ? [product.imagem_path] : [];
+    setProductPhotos(paths.map((path) => ({ path })));
     setScr("novo");
   }
 
   function novoProduto() {
     if (!me || me.tipo !== "f") return toast("Somente fornecedores podem cadastrar produtos.");
     setProductDraft(null);
-    setProductPhoto(null);
-    setProductPhotoPreview(null);
+    setProductPhotos([]);
     setScr("novo");
   }
 
@@ -2105,16 +2100,19 @@ export function ForneceApp() {
     reader.onload = () => setFotoPreview(typeof reader.result === "string" ? reader.result : null);
     reader.readAsDataURL(file);
   };
-  const escolherImagemProduto = (file?: File) => {
-    if (!file) return;
-    if (!["image/jpeg", "image/png", "image/webp"].includes(file.type))
-      return toast("Escolha uma imagem JPG, PNG ou WebP.");
-    if (file.size > 5 * 1024 * 1024) return toast("A imagem do produto deve ter até 5 MB.");
-    setProductPhoto(file);
-    const reader = new FileReader();
-    reader.onload = () =>
-      setProductPhotoPreview(typeof reader.result === "string" ? reader.result : null);
-    reader.readAsDataURL(file);
+  const escolherImagemProduto = (files?: FileList | null) => {
+    if (!files?.length) return;
+    const list = Array.from(files);
+    const free = 20 - productPhotos.length;
+    if (free <= 0) return toast("Limite de 20 fotos atingido.");
+    if (list.length > free) toast(`Só cabem mais ${free} foto(s). As demais foram ignoradas.`);
+    const ok: { file: File; preview: string }[] = [];
+    for (const file of list.slice(0, free)) {
+      if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) { toast("Escolha imagens JPG, PNG ou WebP."); continue; }
+      if (file.size > 5 * 1024 * 1024) { toast("Cada imagem deve ter até 5 MB."); continue; }
+      ok.push({ file, preview: URL.createObjectURL(file) });
+    }
+    setProductPhotos((cur) => [...cur, ...ok].slice(0, 20));
   };
 
   const Back = ({ to, children }: { to: () => void; children?: React.ReactNode }) => (
@@ -2947,9 +2945,26 @@ export function ForneceApp() {
               <Ic k="heart" f={!!p.fav} />
             </button>
           </Back>
-          <div className="hero">
-            <ProductPhoto path={p.imageUrl} alt={p.nome} fallback={<Ic k={p.icone} />} />
-          </div>
+          {(() => {
+            const fotos = p.imagens?.length ? p.imagens : p.imageUrl ? [p.imageUrl] : [];
+            const idx = Math.min(heroIdx, Math.max(fotos.length - 1, 0));
+            return (
+              <>
+                <div className="hero">
+                  <ProductPhoto path={fotos[idx] ?? null} alt={p.nome} fallback={<Ic k={p.icone} />} />
+                </div>
+                {fotos.length > 1 && (
+                  <div className="hero-thumbs">
+                    {fotos.map((f, i) => (
+                      <button key={f} className={i === idx ? "on" : ""} aria-label={`Ver foto ${i + 1}`} onClick={() => setHeroIdx(i)}>
+                        <ProductPhoto path={f} alt="" fallback={<Ic k="camera" />} />
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </>
+            );
+          })()}
           <h1 style={{ marginTop: 14 }}>{p.nome}</h1>
           <button className="forn-link" onClick={() => go("forn", p.fornecedor_id)}>
             <span className="mute">
@@ -3953,24 +3968,22 @@ export function ForneceApp() {
             <HelpButton />
           </Back>
           <h1>{productDraft ? "Editar produto" : "Novo produto"}</h1>
-          <label className="product-photo-picker">
-            {productPhotoPreview ? (
-              <img src={productPhotoPreview} alt="Prévia do produto" />
-            ) : productDraft?.imageUrl ? (
-              <ProductPhoto path={productDraft.imageUrl} alt="Prévia do produto" fallback={<Ic k="camera" />} />
-            ) : (
-              <span>
-                <Ic k="camera" />
-                Adicionar imagem
-              </span>
+          <div className="photo-grid">
+            {productPhotos.map((ph, i) => (
+              <div className="photo-thumb" key={ph.path || ph.preview}>
+                {ph.preview ? <img src={ph.preview} alt={`Foto ${i + 1}`} /> : <ProductPhoto path={ph.path!} alt={`Foto ${i + 1}`} fallback={<Ic k="camera" />} />}
+                {i === 0 && <span className="photo-main">Capa</span>}
+                <button type="button" aria-label="Remover foto" onClick={() => setProductPhotos((c) => c.filter((_, j) => j !== i))}>×</button>
+              </div>
+            ))}
+            {productPhotos.length < 20 && (
+              <label className="product-photo-picker photo-add">
+                <span><Ic k="camera" />Adicionar fotos</span>
+                <input type="file" multiple accept="image/jpeg,image/png,image/webp" onChange={(event) => { escolherImagemProduto(event.target.files); event.target.value = ""; }} />
+              </label>
             )}
-            <input
-              type="file"
-              accept="image/jpeg,image/png,image/webp"
-              onChange={(event) => escolherImagemProduto(event.target.files?.[0])}
-            />
-          </label>
-          <p className="mute photo-hint">Imagem JPG, PNG ou WebP · até 5 MB</p>
+          </div>
+          <p className="mute photo-hint">{productPhotos.length}/20 fotos · JPG, PNG ou WebP · até 5 MB cada · a primeira é a capa</p>
           <label>
             Nome do produto
             <input id="n1" maxLength={120} defaultValue={productDraft?.nome || ""} />
